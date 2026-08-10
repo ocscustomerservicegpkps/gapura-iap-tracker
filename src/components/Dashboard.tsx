@@ -118,11 +118,6 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
             <h1 className="text-[24px] font-bold text-ink-strong sm:text-[30px]">
               Dasbor Monitoring Improvement Action Plan
             </h1>
-            <p className="mt-2 max-w-[640px] text-[14px] leading-relaxed text-muted">
-              Ringkasan kendali &amp; pemantauan tindak lanjut atas seluruh kasus
-              irregularity. Data dibaca langsung dari spreadsheet Tracker dan setiap
-              perubahan ditulis kembali ke sana.
-            </p>
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <button
@@ -144,12 +139,16 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
         <CaseSummaryTable
           byCase={byCase}
           totals={totals}
-          onOpenContext={(summary) => setDialog({ kind: "case-context", summary })}
+          onOpenContext={(summary) =>
+            setDialog({ kind: "case-context", summary })
+          }
           onAddStep={(summary) =>
             setDialog({ kind: "new-item", iapId: summary.iapId })
           }
           onEditCase={(summary) => setDialog({ kind: "edit-case", summary })}
-          onDeleteCase={(summary) => setDialog({ kind: "delete-case", summary })}
+          onDeleteCase={(summary) =>
+            setDialog({ kind: "delete-case", summary })
+          }
         />
 
         <Charts items={items} byCase={byCase} totals={totals} />
@@ -162,15 +161,17 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
             <button
               type="button"
               className="btn"
-              onClick={() => setDialog({ kind: "new-item", iapId: criteria.iapId })}
+              onClick={() =>
+                setDialog({ kind: "new-item", iapId: criteria.iapId })
+              }
               data-testid="new-item"
             >
               + Item Aksi untuk {criteria.iapId}
             </button>
           ) : (
             <p className="text-[12px] text-faint">
-              Gunakan tombol <b>+ Item</b> pada ringkasan kasus di atas, atau pilih
-              satu ID IAP pada filter, untuk menambah item aksi.
+              Gunakan tombol <b>+ Item</b> pada ringkasan kasus di atas, atau
+              pilih satu ID IAP pada filter, untuk menambah item aksi.
             </p>
           )}
         </div>

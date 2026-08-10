@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { SortDirection, SortKey } from "@/domain/filter";
 import type { DerivedActionItem } from "@/domain/types";
 import { OVERDUE_PILL, progressColor, STATUS_PILL } from "./status-styles";
@@ -13,24 +14,22 @@ interface ActionTableProps {
   onDelete: (item: DerivedActionItem) => void;
 }
 
-// Widths chosen so the whole grid, action buttons included, fits inside the 1400px
-// container without horizontal scrolling on a desktop screen.
-const COLUMNS: Array<{ key: SortKey; label: string; className?: string }> = [
-  { key: "no", label: "No", className: "w-[42px]" },
-  { key: "iapId", label: "Kasus / Stasiun", className: "min-w-[176px]" },
-  {
-    key: "step",
-    label: "Langkah & Detail Tindakan",
-    className: "min-w-[250px]",
-  },
-  { key: "pic", label: "PIC", className: "min-w-[128px]" },
-  { key: "timeline", label: "Linimasa", className: "min-w-[92px]" },
-  { key: "targetDate", label: "Target", className: "min-w-[88px]" },
-  { key: "status", label: "Status", className: "min-w-[104px]" },
-  { key: "progress", label: "Progres", className: "min-w-[96px]" },
-  { key: "overdue", label: "Terlambat", className: "min-w-[100px]" },
-  { key: "evidence", label: "Bukti / Catatan", className: "min-w-[140px]" },
+// Percentage widths on a fixed layout: every column keeps its share of the
+// container, text wraps instead of truncating, and nothing scrolls sideways.
+const COLUMNS: Array<{ key: SortKey; label: string; width: string }> = [
+  { key: "no", label: "No", width: "3%" },
+  { key: "iapId", label: "Kasus / Stasiun", width: "14%" },
+  { key: "step", label: "Langkah & Detail Tindakan", width: "18%" },
+  { key: "pic", label: "PIC", width: "9%" },
+  { key: "timeline", label: "Linimasa", width: "8%" },
+  { key: "targetDate", label: "Target", width: "7%" },
+  { key: "status", label: "Status", width: "9%" },
+  { key: "progress", label: "Progres", width: "7%" },
+  { key: "overdue", label: "Terlambat", width: "8%" },
+  { key: "evidence", label: "Bukti / Catatan", width: "10%" },
 ];
+
+const PAGE = 10;
 
 export function ActionTable({
   rows,
@@ -40,10 +39,29 @@ export function ActionTable({
   onEdit,
   onDelete,
 }: ActionTableProps) {
+  // Infinite scroll: ten more rows each time the sentinel below the list comes
+  // into view. Plain IntersectionObserver, no virtualisation, no library.
+  const [limit, setLimit] = useState(PAGE);
+  const sentinel = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setLimit(PAGE), [rows]);
+
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || limit >= rows.length) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) setLimit((current) => current + PAGE);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [limit, rows.length]);
+
+  const visible = rows.slice(0, limit);
+
   // Grouped by IAP ID in first-appearance order, so the active sort still decides
   // which case comes first and how its items are ordered inside the group.
   const groups = new Map<string, DerivedActionItem[]>();
-  for (const row of rows) {
+  for (const row of visible) {
     const group = groups.get(row.iapId);
     if (group) group.push(row);
     else groups.set(row.iapId, [row]);
@@ -64,13 +82,13 @@ export function ActionTable({
 
   return (
     <>
-      {/* Desktop: the full grid, horizontally scrollable if the viewport is tight. */}
+      {/* Desktop: every column fits the container width; long text wraps. */}
       <div
         className="card hidden overflow-hidden md:block"
         data-testid="table-view"
       >
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] border-collapse text-[12.5px]">
+        <div>
+          <table className="w-full table-fixed border-collapse text-[11.5px] [&_td]:break-words [&_td_.pill]:whitespace-normal">
             <thead>
               <tr className="border-b border-line-strong bg-head">
                 {COLUMNS.map((column) => (
@@ -84,7 +102,8 @@ export function ActionTable({
                           : "descending"
                         : "none"
                     }
-                    className={`px-2.5 py-2.5 text-left font-semibold text-idle-ink ${column.className ?? ""}`}
+                    style={{ width: column.width }}
+                    className="px-2 py-1.5 text-left font-semibold text-idle-ink"
                   >
                     <button
                       type="button"
@@ -102,7 +121,8 @@ export function ActionTable({
                 ))}
                 <th
                   scope="col"
-                  className="px-2.5 py-2.5 text-right font-semibold text-idle-ink"
+                  style={{ width: "7%" }}
+                  className="px-2 py-1.5 text-right font-semibold text-idle-ink"
                 >
                   Aksi
                 </th>
@@ -133,8 +153,8 @@ export function ActionTable({
                     className="border-b border-line-soft align-top"
                     data-testid={`row-${row.iapId}-${row.stepNo}`}
                   >
-                    <td className="px-2.5 py-2.5 text-label">{row.no}</td>
-                    <td className="px-2.5 py-2.5">
+                    <td className="px-2 py-1.5 text-label">{row.no}</td>
+                    <td className="px-2 py-1.5">
                       <div className="font-mono text-[11.5px] font-bold text-ink">
                         {row.iapId}
                       </div>
@@ -145,7 +165,7 @@ export function ActionTable({
                         {row.station}
                       </div>
                     </td>
-                    <td className="px-2.5 py-2.5">
+                    <td className="px-2 py-1.5">
                       <div className="font-semibold text-ink">
                         Langkah {row.stepNo}: {row.step}
                       </div>
@@ -153,27 +173,27 @@ export function ActionTable({
                         {row.action}
                       </div>
                     </td>
-                    <td className="px-2.5 py-2.5 text-[12px] text-ink-mid">
+                    <td className="px-2 py-1.5 text-[12px] text-ink-mid">
                       {row.pic}
                     </td>
-                    <td className="px-2.5 py-2.5 text-[12px] text-idle">
+                    <td className="px-2 py-1.5 text-[12px] text-idle">
                       {row.timeline}
                     </td>
                     <td
-                      className="px-2.5 py-2.5 text-[12px] whitespace-nowrap text-ink-mid"
+                      className="px-2 py-1.5 text-[12px] text-ink-mid"
                       data-testid={`target-${row.iapId}-${row.stepNo}`}
                     >
                       {row.targetDate}
                     </td>
-                    <td className="px-2.5 py-2.5">
+                    <td className="px-2 py-1.5">
                       <span className={`pill ${STATUS_PILL[row.status]}`}>
                         {row.status}
                       </span>
                     </td>
-                    <td className="px-2.5 py-2.5">
+                    <td className="px-2 py-1.5">
                       <ProgressBar value={row.progress} />
                     </td>
-                    <td className="px-2.5 py-2.5">
+                    <td className="px-2 py-1.5">
                       <span
                         className={`pill ${OVERDUE_PILL[row.overdue]}`}
                         data-testid={`overdue-${row.iapId}-${row.stepNo}`}
@@ -181,11 +201,11 @@ export function ActionTable({
                         {row.overdue}
                       </span>
                     </td>
-                    <td className="px-2.5 py-2.5 text-[11.5px] leading-snug text-idle">
+                    <td className="px-2 py-1.5 text-[11.5px] leading-snug text-idle">
                       {row.evidence}
                     </td>
-                    <td className="px-2.5 py-2.5">
-                      <div className="flex justify-end gap-1.5">
+                    <td className="px-2 py-1.5">
+                      <div className="flex flex-wrap justify-end gap-1">
                         <RowButton
                           onClick={() => onEdit(row)}
                           testId={`edit-${row.iapId}-${row.stepNo}`}
@@ -304,6 +324,26 @@ export function ActionTable({
           </li>
         ))}
       </ul>
+
+      <div
+        ref={sentinel}
+        className="py-3 text-center text-[11.5px] text-faint"
+        data-testid="load-more"
+      >
+        {limit < rows.length ? (
+          // The observer normally trips this on scroll; the button keeps it
+          // reachable by keyboard and where IntersectionObserver never fires.
+          <button
+            type="button"
+            className="cursor-pointer underline"
+            onClick={() => setLimit((current) => current + PAGE)}
+          >
+            Muat {PAGE} item berikutnya ({visible.length} dari {rows.length})
+          </button>
+        ) : (
+          `Semua ${rows.length} item ditampilkan.`
+        )}
+      </div>
     </>
   );
 }
@@ -320,7 +360,7 @@ function CardField({ label, value }: { label: string; value: string }) {
 function ProgressBar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-1.5">
-      <div className="h-[6px] w-[52px] overflow-hidden rounded-[4px] bg-[oklch(93%_0.004_250)]">
+      <div className="h-[6px] w-[34px] shrink-0 overflow-hidden rounded-[4px] bg-[oklch(93%_0.004_250)]">
         <div
           className="h-full rounded-[4px]"
           style={{ width: `${value}%`, background: progressColor(value) }}
