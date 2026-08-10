@@ -45,7 +45,7 @@ export function FilterBar({
       />
 
       <select
-        aria-label="Filter ID IAP"
+        aria-label="Filter Number Flight / ID IAP"
         data-testid="filter-iap"
         className="field w-[calc(50%-4px)] sm:w-auto"
         value={criteria.iapId}

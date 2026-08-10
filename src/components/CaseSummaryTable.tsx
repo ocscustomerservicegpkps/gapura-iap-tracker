@@ -45,7 +45,7 @@ export function CaseSummaryTable({
         <table className="w-full border-collapse text-[13px]" data-testid="case-summary">
           <thead>
             <tr className="border-b border-[oklch(90%_0.005_250)]">
-              <Th>IAP ID</Th>
+              <Th>Number Flight / ID IAP</Th>
               <Th>Judul Kasus</Th>
               <Th center>Total</Th>
               <Th center className="text-done">

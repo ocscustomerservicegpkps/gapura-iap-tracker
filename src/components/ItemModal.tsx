@@ -107,7 +107,7 @@ export function ItemModal({
       ) : null}
 
       <dl className="mb-4 grid grid-cols-2 gap-3 rounded-[7px] bg-head px-3 py-3 text-[11.5px] sm:grid-cols-4">
-        <Readout label="ID IAP" value={iapId} mono />
+        <Readout label="Number Flight / ID IAP" value={iapId} mono />
         <Readout
           label="No Langkah"
           value={isNew ? "otomatis" : String(item.stepNo)}

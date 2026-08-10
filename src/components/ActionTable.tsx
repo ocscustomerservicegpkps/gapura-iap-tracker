@@ -18,7 +18,11 @@ interface ActionTableProps {
 const COLUMNS: Array<{ key: SortKey; label: string; className?: string }> = [
   { key: "no", label: "No", className: "w-[42px]" },
   { key: "iapId", label: "Kasus / Stasiun", className: "min-w-[176px]" },
-  { key: "step", label: "Langkah & Detail Tindakan", className: "min-w-[250px]" },
+  {
+    key: "step",
+    label: "Langkah & Detail Tindakan",
+    className: "min-w-[250px]",
+  },
   { key: "pic", label: "PIC", className: "min-w-[128px]" },
   { key: "timeline", label: "Linimasa", className: "min-w-[92px]" },
   { key: "targetDate", label: "Target", className: "min-w-[88px]" },
@@ -36,6 +40,15 @@ export function ActionTable({
   onEdit,
   onDelete,
 }: ActionTableProps) {
+  // Grouped by IAP ID in first-appearance order, so the active sort still decides
+  // which case comes first and how its items are ordered inside the group.
+  const groups = new Map<string, DerivedActionItem[]>();
+  for (const row of rows) {
+    const group = groups.get(row.iapId);
+    if (group) group.push(row);
+    else groups.set(row.iapId, [row]);
+  }
+
   if (rows.length === 0) {
     return (
       <div className="card overflow-hidden">
@@ -52,7 +65,10 @@ export function ActionTable({
   return (
     <>
       {/* Desktop: the full grid, horizontally scrollable if the viewport is tight. */}
-      <div className="card hidden overflow-hidden md:block" data-testid="table-view">
+      <div
+        className="card hidden overflow-hidden md:block"
+        data-testid="table-view"
+      >
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] border-collapse text-[12.5px]">
             <thead>
@@ -92,159 +108,199 @@ export function ActionTable({
                 </th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={`${row.iapId}-${row.stepNo}`}
-                  className="border-b border-line-soft align-top"
-                  data-testid={`row-${row.iapId}-${row.stepNo}`}
-                >
-                  <td className="px-2.5 py-2.5 text-label">{row.no}</td>
-                  <td className="px-2.5 py-2.5">
-                    <div className="font-mono text-[11.5px] font-bold text-ink">
-                      {row.iapId}
-                    </div>
-                    <div className="mt-0.5 text-[12px] leading-snug text-ink-mid">
-                      {row.title}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-faint">
-                      {row.station}
-                    </div>
-                  </td>
-                  <td className="px-2.5 py-2.5">
-                    <div className="font-semibold text-ink">
-                      Langkah {row.stepNo}: {row.step}
-                    </div>
-                    <div className="mt-0.5 text-[11.5px] leading-snug text-muted">
-                      {row.action}
-                    </div>
-                  </td>
-                  <td className="px-2.5 py-2.5 text-[12px] text-ink-mid">
-                    {row.pic}
-                  </td>
-                  <td className="px-2.5 py-2.5 text-[12px] text-idle">
-                    {row.timeline}
-                  </td>
-                  <td
-                    className="px-2.5 py-2.5 text-[12px] whitespace-nowrap text-ink-mid"
-                    data-testid={`target-${row.iapId}-${row.stepNo}`}
+            {[...groups].map(([iapId, groupRows]) => (
+              <tbody key={iapId} data-testid={`group-${iapId}`}>
+                <tr className="border-b border-line-strong bg-head">
+                  <th
+                    colSpan={COLUMNS.length + 1}
+                    scope="colgroup"
+                    className="px-2.5 py-2 text-left"
                   >
-                    {row.targetDate}
-                  </td>
-                  <td className="px-2.5 py-2.5">
-                    <span className={`pill ${STATUS_PILL[row.status]}`}>
-                      {row.status}
+                    <span className="font-mono text-[11.5px] font-bold text-ink">
+                      {iapId}
                     </span>
-                  </td>
-                  <td className="px-2.5 py-2.5">
-                    <ProgressBar value={row.progress} />
-                  </td>
-                  <td className="px-2.5 py-2.5">
-                    <span
-                      className={`pill ${OVERDUE_PILL[row.overdue]}`}
-                      data-testid={`overdue-${row.iapId}-${row.stepNo}`}
-                    >
-                      {row.overdue}
+                    <span className="ml-2 text-[11.5px] font-normal text-ink-mid">
+                      {groupRows[0]?.title}
                     </span>
-                  </td>
-                  <td className="px-2.5 py-2.5 text-[11.5px] leading-snug text-idle">
-                    {row.evidence}
-                  </td>
-                  <td className="px-2.5 py-2.5">
-                    <div className="flex justify-end gap-1.5">
-                      <RowButton
-                        onClick={() => onEdit(row)}
-                        testId={`edit-${row.iapId}-${row.stepNo}`}
-                      >
-                        Ubah
-                      </RowButton>
-                      <RowButton
-                        onClick={() => onDelete(row)}
-                        testId={`delete-${row.iapId}-${row.stepNo}`}
-                        danger
-                      >
-                        Hapus
-                      </RowButton>
-                    </div>
-                  </td>
+                    <span className="ml-2 text-[11px] font-normal text-faint">
+                      {groupRows[0]?.station} · {groupRows.length} item
+                    </span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
+                {groupRows.map((row) => (
+                  <tr
+                    key={`${row.iapId}-${row.stepNo}`}
+                    className="border-b border-line-soft align-top"
+                    data-testid={`row-${row.iapId}-${row.stepNo}`}
+                  >
+                    <td className="px-2.5 py-2.5 text-label">{row.no}</td>
+                    <td className="px-2.5 py-2.5">
+                      <div className="font-mono text-[11.5px] font-bold text-ink">
+                        {row.iapId}
+                      </div>
+                      <div className="mt-0.5 text-[12px] leading-snug text-ink-mid">
+                        {row.title}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-faint">
+                        {row.station}
+                      </div>
+                    </td>
+                    <td className="px-2.5 py-2.5">
+                      <div className="font-semibold text-ink">
+                        Langkah {row.stepNo}: {row.step}
+                      </div>
+                      <div className="mt-0.5 text-[11.5px] leading-snug text-muted">
+                        {row.action}
+                      </div>
+                    </td>
+                    <td className="px-2.5 py-2.5 text-[12px] text-ink-mid">
+                      {row.pic}
+                    </td>
+                    <td className="px-2.5 py-2.5 text-[12px] text-idle">
+                      {row.timeline}
+                    </td>
+                    <td
+                      className="px-2.5 py-2.5 text-[12px] whitespace-nowrap text-ink-mid"
+                      data-testid={`target-${row.iapId}-${row.stepNo}`}
+                    >
+                      {row.targetDate}
+                    </td>
+                    <td className="px-2.5 py-2.5">
+                      <span className={`pill ${STATUS_PILL[row.status]}`}>
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="px-2.5 py-2.5">
+                      <ProgressBar value={row.progress} />
+                    </td>
+                    <td className="px-2.5 py-2.5">
+                      <span
+                        className={`pill ${OVERDUE_PILL[row.overdue]}`}
+                        data-testid={`overdue-${row.iapId}-${row.stepNo}`}
+                      >
+                        {row.overdue}
+                      </span>
+                    </td>
+                    <td className="px-2.5 py-2.5 text-[11.5px] leading-snug text-idle">
+                      {row.evidence}
+                    </td>
+                    <td className="px-2.5 py-2.5">
+                      <div className="flex justify-end gap-1.5">
+                        <RowButton
+                          onClick={() => onEdit(row)}
+                          testId={`edit-${row.iapId}-${row.stepNo}`}
+                        >
+                          Ubah
+                        </RowButton>
+                        <RowButton
+                          onClick={() => onDelete(row)}
+                          testId={`delete-${row.iapId}-${row.stepNo}`}
+                          danger
+                        >
+                          Hapus
+                        </RowButton>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            ))}
           </table>
         </div>
       </div>
 
       {/* Phones: one card per item, so a row is readable without panning sideways. */}
       <ul className="space-y-3 md:hidden" data-testid="card-view">
-        {rows.map((row) => (
-          <li
-            key={`${row.iapId}-${row.stepNo}`}
-            className="card px-4 py-3"
-            data-testid={`card-${row.iapId}-${row.stepNo}`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-mono text-[11.5px] font-bold text-ink">
-                  {row.iapId}
-                </div>
-                <div className="mt-0.5 text-[12px] leading-snug text-ink-mid">
-                  {row.title}
-                </div>
-                <div className="mt-0.5 text-[11px] text-faint">{row.station}</div>
-              </div>
-              <span className="text-[11px] text-faint">#{row.no}</span>
-            </div>
-
-            <div className="mt-2.5 text-[13px] font-semibold text-ink">
-              Langkah {row.stepNo}: {row.step}
-            </div>
-            <p className="mt-1 text-[12px] leading-snug text-muted">{row.action}</p>
-
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-[11.5px]">
-              <CardField label="PIC" value={row.pic} />
-              <CardField label="Linimasa" value={row.timeline} />
-              <CardField label="Tanggal Target" value={row.targetDate || "—"} />
-              <CardField
-                label="Tanggal Selesai"
-                value={row.actualDate || "—"}
-              />
-            </dl>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className={`pill ${STATUS_PILL[row.status]}`}>
-                {row.status}
+        {[...groups].map(([iapId, groupRows]) => (
+          <li key={iapId}>
+            <h3 className="mb-2 flex items-baseline gap-2 px-1">
+              <span className="font-mono text-[12px] font-bold text-ink">
+                {iapId}
               </span>
-              <span className={`pill ${OVERDUE_PILL[row.overdue]}`}>
-                {row.overdue}
+              <span className="text-[11px] text-faint">
+                {groupRows.length} item
               </span>
-              <span className="flex-1" />
-              <ProgressBar value={row.progress} />
-            </div>
+            </h3>
+            <ul className="space-y-3">
+              {groupRows.map((row) => (
+                <li
+                  key={`${row.iapId}-${row.stepNo}`}
+                  className="card px-4 py-3"
+                  data-testid={`card-${row.iapId}-${row.stepNo}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-mono text-[11.5px] font-bold text-ink">
+                        {row.iapId}
+                      </div>
+                      <div className="mt-0.5 text-[12px] leading-snug text-ink-mid">
+                        {row.title}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-faint">
+                        {row.station}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-faint">#{row.no}</span>
+                  </div>
 
-            {row.evidence ? (
-              <p className="mt-2.5 border-t border-line-soft pt-2.5 text-[11.5px] leading-snug text-idle">
-                {row.evidence}
-              </p>
-            ) : null}
+                  <div className="mt-2.5 text-[13px] font-semibold text-ink">
+                    Langkah {row.stepNo}: {row.step}
+                  </div>
+                  <p className="mt-1 text-[12px] leading-snug text-muted">
+                    {row.action}
+                  </p>
 
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                className="btn flex-1"
-                onClick={() => onEdit(row)}
-                data-testid={`card-edit-${row.iapId}-${row.stepNo}`}
-              >
-                Ubah
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => onDelete(row)}
-                data-testid={`card-delete-${row.iapId}-${row.stepNo}`}
-              >
-                Hapus
-              </button>
-            </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-2 text-[11.5px]">
+                    <CardField label="PIC" value={row.pic} />
+                    <CardField label="Linimasa" value={row.timeline} />
+                    <CardField
+                      label="Tanggal Target"
+                      value={row.targetDate || "—"}
+                    />
+                    <CardField
+                      label="Tanggal Selesai"
+                      value={row.actualDate || "—"}
+                    />
+                  </dl>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className={`pill ${STATUS_PILL[row.status]}`}>
+                      {row.status}
+                    </span>
+                    <span className={`pill ${OVERDUE_PILL[row.overdue]}`}>
+                      {row.overdue}
+                    </span>
+                    <span className="flex-1" />
+                    <ProgressBar value={row.progress} />
+                  </div>
+
+                  {row.evidence ? (
+                    <p className="mt-2.5 border-t border-line-soft pt-2.5 text-[11.5px] leading-snug text-idle">
+                      {row.evidence}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      className="btn flex-1"
+                      onClick={() => onEdit(row)}
+                      data-testid={`card-edit-${row.iapId}-${row.stepNo}`}
+                    >
+                      Ubah
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => onDelete(row)}
+                      data-testid={`card-delete-${row.iapId}-${row.stepNo}`}
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </li>
         ))}
       </ul>

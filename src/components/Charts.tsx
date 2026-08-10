@@ -48,7 +48,9 @@ function Panel({
 }) {
   return (
     <div className="card px-5 py-4">
-      <h3 className="mb-3 text-[13px] font-semibold text-ink-strong">{title}</h3>
+      <h3 className="mb-3 text-[13px] font-semibold text-ink-strong">
+        {title}
+      </h3>
       {children}
     </div>
   );
@@ -138,33 +140,64 @@ function StatusDonut({
  */
 function CaseBars({ byCase }: { byCase: readonly CaseSummary[] }) {
   return (
-    <ul className="space-y-2">
-      {byCase.map((summary) => (
-        <li key={summary.iapId} className="flex items-center gap-3">
-          <span className="w-[104px] shrink-0 truncate font-mono text-[11px] text-ink-mid">
-            {summary.iapId}
-          </span>
+    <>
+      <ul className="space-y-2">
+        {byCase.map((summary) => (
+          <li key={summary.iapId} className="flex items-center gap-3">
+            <span className="w-[104px] shrink-0 truncate font-mono text-[11px] text-ink-mid">
+              {summary.iapId}
+            </span>
+            <span
+              className="flex h-[16px] flex-1 overflow-hidden rounded-[4px] bg-idle-soft"
+              title={`${summary.iapId}: ${summary.closed} selesai, ${summary.inProgress} berjalan, ${summary.open} belum dimulai`}
+            >
+              {STATUSES.map((status) => {
+                const value = countsByStatus(summary)[status];
+                if (value === 0) return null;
+                return (
+                  <span
+                    key={status}
+                    className="flex items-center justify-center overflow-hidden text-[10px] font-semibold text-white"
+                    style={{
+                      background: STATUS_COLOR[status],
+                      width: `${(value / summary.total) * 100}%`,
+                    }}
+                  >
+                    {value}
+                  </span>
+                );
+              })}
+            </span>
+            <span className="w-[26px] shrink-0 text-right text-[11.5px] text-faint">
+              {summary.total}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <Legend
+        items={STATUSES.map((status) => ({
+          label: status,
+          color: STATUS_COLOR[status],
+        }))}
+      />
+    </>
+  );
+}
+
+function Legend({
+  items,
+}: {
+  items: readonly { label: string; color: string }[];
+}) {
+  return (
+    <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-line-soft pt-2.5 text-[11px] text-muted">
+      {items.map((item) => (
+        <li key={item.label} className="flex items-center gap-1.5">
           <span
-            className="flex h-[14px] flex-1 overflow-hidden rounded-[4px] bg-idle-soft"
-            title={`${summary.iapId}: ${summary.closed} selesai, ${summary.inProgress} berjalan, ${summary.open} belum dimulai`}
-          >
-            {STATUSES.map((status) => {
-              const value = countsByStatus(summary)[status];
-              if (value === 0) return null;
-              return (
-                <span
-                  key={status}
-                  style={{
-                    background: STATUS_COLOR[status],
-                    width: `${(value / summary.total) * 100}%`,
-                  }}
-                />
-              );
-            })}
-          </span>
-          <span className="w-[26px] shrink-0 text-right text-[11.5px] text-faint">
-            {summary.total}
-          </span>
+            className="inline-block h-[9px] w-[9px] rounded-[2px]"
+            style={{ background: item.color }}
+          />
+          {item.label}
         </li>
       ))}
     </ul>
@@ -175,24 +208,39 @@ function DueChart({ buckets }: { buckets: readonly DueBucket[] }) {
   const tallest = Math.max(1, ...buckets.map((b) => b.count));
 
   return (
-    <ul className="space-y-2">
-      {buckets.map((bucket) => (
-        <li key={bucket.label} className="flex items-center gap-3 text-[12px]">
-          <span className="w-[88px] shrink-0 text-muted">{bucket.label}</span>
-          <span className="flex h-[14px] flex-1 items-center">
-            <span
-              className="h-full rounded-[4px]"
-              style={{
-                width: `${Math.max((bucket.count / tallest) * 100, bucket.count ? 3 : 0)}%`,
-                background: bucket.late ? LATE_COLOR : "oklch(45% 0.1 160)",
-              }}
-            />
-          </span>
-          <span className="w-[26px] shrink-0 text-right font-semibold text-ink">
-            {bucket.count}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="space-y-2">
+        {buckets.map((bucket) => (
+          <li
+            key={bucket.label}
+            className="flex items-center gap-3 text-[12px]"
+          >
+            <span className="w-[88px] shrink-0 text-muted">{bucket.label}</span>
+            <span className="flex h-[16px] flex-1 items-center">
+              <span
+                className="flex h-full items-center justify-end rounded-[4px] pr-1.5 text-[10px] font-semibold text-white"
+                style={{
+                  // ponytail: min-width so the label still fits inside a tiny bar
+                  minWidth: bucket.count ? "24px" : 0,
+                  width: `${(bucket.count / tallest) * 100}%`,
+                  background: bucket.late ? LATE_COLOR : "oklch(45% 0.1 160)",
+                }}
+              >
+                {bucket.count || null}
+              </span>
+              {bucket.count ? null : (
+                <span className="text-[11px] text-faint">0</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <Legend
+        items={[
+          { label: "Terlambat", color: LATE_COLOR },
+          { label: "Belum jatuh tempo", color: "oklch(45% 0.1 160)" },
+        ]}
+      />
+    </>
   );
 }

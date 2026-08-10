@@ -80,7 +80,7 @@ export function CaseModal({ existing, onClose, onSaved }: CaseModalProps) {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block">
-          <span className="label">ID IAP</span>
+          <span className="label">Number Flight / ID IAP</span>
           <input
             className="field font-mono"
             data-testid="case-field-id"
