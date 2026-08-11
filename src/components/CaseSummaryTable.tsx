@@ -84,6 +84,7 @@ export function CaseSummaryTable({
               >
                 + Item
               </LinkButton>
+              <DownloadLinks iapId={summary.iapId} prefix="case-card" />
               <LinkButton
                 onClick={() => onEditCase(summary)}
                 testId={`case-card-edit-${summary.iapId}`}
@@ -172,6 +173,7 @@ export function CaseSummaryTable({
                     >
                       + Item
                     </LinkButton>
+                    <DownloadLinks iapId={summary.iapId} prefix="case" />
                     <LinkButton
                       onClick={() => onEditCase(summary)}
                       testId={`case-edit-${summary.iapId}`}
@@ -236,6 +238,39 @@ function Tally({
   );
 }
 
+/**
+ * The case as its IAP document. Plain links, so the browser downloads the Word file
+ * and opens the print page — which prints itself — without any client code.
+ */
+function DownloadLinks({ iapId, prefix }: { iapId: string; prefix: string }) {
+  const href = `/api/export/${encodeURIComponent(iapId)}`;
+  return (
+    <>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        data-testid={`${prefix}-pdf-${iapId}`}
+        title={`Cetak / simpan PDF dokumen IAP ${iapId}`}
+        className={`${LINK_CLASS} text-ink-mid`}
+      >
+        PDF
+      </a>
+      <a
+        href={`${href}?format=docx`}
+        data-testid={`${prefix}-docx-${iapId}`}
+        title={`Unduh dokumen Word IAP ${iapId}`}
+        className={`${LINK_CLASS} text-ink-mid`}
+      >
+        DOCX
+      </a>
+    </>
+  );
+}
+
+const LINK_CLASS =
+  "flex min-h-[28px] cursor-pointer items-center rounded-[5px] border border-line px-2.5 py-1 text-[11.5px] font-semibold hover:bg-head";
+
 function LinkButton({
   children,
   onClick,
@@ -252,9 +287,7 @@ function LinkButton({
       type="button"
       onClick={onClick}
       data-testid={testId}
-      className={`min-h-[28px] cursor-pointer rounded-[5px] border border-line px-2.5 py-1 text-[11.5px] font-semibold hover:bg-head ${
-        danger ? "text-late-ink" : "text-ink-mid"
-      }`}
+      className={`${LINK_CLASS} ${danger ? "text-late-ink" : "text-ink-mid"}`}
     >
       {children}
     </button>

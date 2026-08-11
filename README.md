@@ -25,6 +25,13 @@ Indonesian throughout, light theme only, no authentication.
 - **Evidence has a link.** Column P of `Tracker` holds the URL of the proof itself,
   shown next to its `Bukti / Catatan` note.
 - **Charts and a phone layout**, so a PIC can update an item from the ramp.
+- **The case prints as the IAP document it came from.** Each row of the case summary
+  offers `DOCX` and `PDF`: `/api/export/{ID}?format=docx` writes a Word file laid out
+  like the station's own IAP document — header block, root cause, action matrix, KPIs,
+  closing, signature — and `/api/export/{ID}` serves the same document as a print page
+  that opens the browser's print dialog. Neither costs a dependency: the `.docx` is
+  five XML parts in a zip written with `node:zlib`, and the PDF is the browser's own
+  "Simpan sebagai PDF".
 
 ## Running it
 
@@ -46,12 +53,12 @@ service account credentials.
 npm test
 ```
 
-Builds the app and runs the Playwright suite (66 tests) against it. Three servers are
+Builds the app and runs the Playwright suite (73 tests) against it. Three servers are
 started automatically:
 
 | Project        | Clock pinned to             | Covers                                          |
 | -------------- | --------------------------- | ----------------------------------------------- |
-| `desktop`      | `2026-08-10T05:00:00Z`      | read, filters, sorting, CRUD, context, evidence |
+| `desktop`      | `2026-08-10T05:00:00Z`      | read, filters, sorting, CRUD, context, evidence, export |
 | `mobile`       | same                        | stacked cards, phone editing                    |
 | `clock-later`  | `2026-09-15T05:00:00Z`      | stale column N, self-heal on save               |
 
