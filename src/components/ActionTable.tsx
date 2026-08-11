@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { SortDirection, SortKey } from "@/domain/filter";
 import type { DerivedActionItem } from "@/domain/types";
-import { OVERDUE_PILL, progressColor, STATUS_PILL } from "./status-styles";
+import {
+  OVERDUE_LABEL,
+  OVERDUE_PILL,
+  progressColor,
+  STATUS_LABEL,
+  STATUS_PILL,
+} from "./status-styles";
 
 interface ActionTableProps {
   rows: readonly DerivedActionItem[];
@@ -25,7 +31,7 @@ const COLUMNS: Array<{ key: SortKey; label: string; width: string }> = [
   { key: "targetDate", label: "Target", width: "7%" },
   { key: "status", label: "Status", width: "9%" },
   { key: "progress", label: "Progres", width: "7%" },
-  { key: "overdue", label: "Terlambat", width: "8%" },
+  { key: "overdue", label: "Overdue", width: "8%" },
   { key: "evidence", label: "Bukti / Catatan", width: "10%" },
 ];
 
@@ -187,7 +193,7 @@ export function ActionTable({
                     </td>
                     <td className="px-2 py-1.5">
                       <span className={`pill ${STATUS_PILL[row.status]}`}>
-                        {row.status}
+                        {STATUS_LABEL[row.status]}
                       </span>
                     </td>
                     <td className="px-2 py-1.5">
@@ -198,7 +204,7 @@ export function ActionTable({
                         className={`pill ${OVERDUE_PILL[row.overdue]}`}
                         data-testid={`overdue-${row.iapId}-${row.stepNo}`}
                       >
-                        {row.overdue}
+                        {OVERDUE_LABEL[row.overdue]}
                       </span>
                     </td>
                     <td className="px-2 py-1.5 text-[11.5px] leading-snug text-idle">
@@ -285,10 +291,10 @@ export function ActionTable({
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <span className={`pill ${STATUS_PILL[row.status]}`}>
-                      {row.status}
+                      {STATUS_LABEL[row.status]}
                     </span>
                     <span className={`pill ${OVERDUE_PILL[row.overdue]}`}>
-                      {row.overdue}
+                      {OVERDUE_LABEL[row.overdue]}
                     </span>
                     <span className="flex-1" />
                     <ProgressBar value={row.progress} />

@@ -49,7 +49,7 @@ test.describe("membaca tracker", () => {
     await openDashboard(page);
 
     const table = page.getByTestId("table-view");
-    await expect(table.locator("tbody tr")).toHaveCount(66);
+    await expect(table.locator('[data-testid^="row-"]')).toHaveCount(10);
     await expect(page.getByTestId("result-count")).toHaveText(
       "Menampilkan 66 dari 66 item aksi.",
     );
@@ -62,7 +62,7 @@ test.describe("membaca tracker", () => {
     );
     await expect(firstRow).toContainText("Intl. Airlines Account Management");
     await expect(firstRow).toContainText("18 Jul 2026");
-    await expect(firstRow).toContainText("Selesai");
+    await expect(firstRow).toContainText("Completed");
     await expect(firstRow).toContainText("100%");
     await expect(firstRow).toContainText("Surat permohonan maaf telah dikirim.");
   });
@@ -72,12 +72,12 @@ test.describe("membaca tracker", () => {
   }) => {
     await openDashboard(page);
 
-    await expect(page.getByTestId("overdue-HU702-3")).toHaveText("TERLAMBAT");
+    await expect(page.getByTestId("overdue-HU702-3")).toHaveText("Overdue");
     await expect(page.getByTestId("overdue-HU702-1")).toHaveText("-");
 
     const late = page.getByTestId("overdue-HU702-3");
     const onPlan = page.getByTestId("overdue-GA254-4");
-    await expect(onPlan).toHaveText("Sesuai Rencana");
+    await expect(onPlan).toHaveText("On Track");
     expect(await late.evaluate((el) => getComputedStyle(el).color)).not.toBe(
       await onPlan.evaluate((el) => getComputedStyle(el).color),
     );

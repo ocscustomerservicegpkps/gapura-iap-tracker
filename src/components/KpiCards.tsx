@@ -4,10 +4,10 @@ import type { Totals } from "@/domain/types";
 
 const CARDS = [
   { key: "total", label: "Total Item Aksi", tone: "text-[oklch(20%_0.01_250)]" },
-  { key: "closed", label: "Selesai", tone: "text-done" },
-  { key: "inProgress", label: "Sedang Berjalan", tone: "text-running" },
-  { key: "open", label: "Belum Dimulai", tone: "text-idle" },
-  { key: "overdue", label: "Terlambat (Overdue)", tone: "text-late" },
+  { key: "closed", label: "Completed", tone: "text-done" },
+  { key: "inProgress", label: "Ongoing", tone: "text-running" },
+  { key: "open", label: "Not Started", tone: "text-idle" },
+  { key: "overdue", label: "Overdue", tone: "text-late" },
 ] as const;
 
 /** Two-up on phones, five-up on desktop — the numbers never shrink to unreadable. */

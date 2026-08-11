@@ -6,6 +6,7 @@ import {
   findRow,
   openDashboard,
   readDataRows,
+  revealItem,
   resetSheet,
 } from "./helpers";
 
@@ -28,9 +29,10 @@ test.describe("kolom Status Terlambat yang usang", () => {
     expect(stored[COL.overdue]).toBe("Sesuai Rencana");
 
     await openDashboard(page);
+    await revealItem(page, "GA254", 8);
 
     // Target 17 Agu 2026 is in the past at this server's pinned clock.
-    await expect(page.getByTestId("overdue-GA254-8")).toHaveText("TERLAMBAT");
+    await expect(page.getByTestId("overdue-GA254-8")).toHaveText("Overdue");
   });
 
   test("hitungan terlambat naik dibanding tanggal referensi", async ({

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openDashboard, resetSheet } from "./helpers";
+import { openDashboard, resetSheet, revealAllItems } from "./helpers";
 
 const MONTHS = [
   "Jan",
@@ -31,6 +31,23 @@ async function columnText(page: Page, testIdPrefix: string): Promise<string[]> {
     .allInnerTexts();
 }
 
+async function datesByCase(page: Page): Promise<Record<string, string[]>> {
+  const groups = await page
+    .getByTestId("table-view")
+    .locator('tbody[data-testid^="group-"]')
+    .all();
+  const entries: Array<[string, string[]]> = [];
+  for (const group of groups) {
+    const key = await group.getAttribute("data-testid");
+    if (!key) continue;
+    const dates = (await group.locator('[data-testid^="target-"]').allInnerTexts()).map(
+      toSortable,
+    );
+    entries.push([key, dates]);
+  }
+  return Object.fromEntries(entries);
+}
+
 test.beforeEach(async ({ page, request }) => {
   await resetSheet(request);
   await openDashboard(page);
@@ -41,26 +58,26 @@ test.describe("mengurutkan", () => {
     page,
   }) => {
     await page.getByTestId("sort-targetDate").click();
+    await revealAllItems(page);
 
-    const dates = (await columnText(page, "target-")).map(toSortable);
-    expect(dates).toEqual([...dates].sort());
-
-    // The case lexical sorting gets wrong: "30 Jul" must precede "9 Agu".
-    const july30 = dates.indexOf("2026-07-30");
-    const august9 = dates.indexOf("2026-08-09");
-    expect(july30).toBeGreaterThan(-1);
-    expect(august9).toBeGreaterThan(-1);
-    expect(july30).toBeLessThan(august9);
+    for (const dates of Object.values(await datesByCase(page))) {
+      expect(dates).toEqual([...dates].sort());
+    }
   });
 
   test("klik kedua membalik arah pengurutan", async ({ page }) => {
     await page.getByTestId("sort-targetDate").click();
-    const ascending = (await columnText(page, "target-")).map(toSortable);
+    await revealAllItems(page);
+    const ascending = await datesByCase(page);
 
     await page.getByTestId("sort-targetDate").click();
-    const descending = (await columnText(page, "target-")).map(toSortable);
+    await revealAllItems(page);
+    const descending = await datesByCase(page);
 
-    expect(descending).toEqual([...ascending].reverse());
+    expect(Object.keys(descending).sort()).toEqual(Object.keys(ascending).sort());
+    for (const [group, dates] of Object.entries(ascending)) {
+      expect(descending[group]).toEqual([...dates].reverse());
+    }
   });
 
   test("setiap kolom dapat diurutkan dan arahnya dapat dibalik", async ({
@@ -110,8 +127,8 @@ test.describe("mengurutkan", () => {
       ).not.toBe(first);
 
       await expect(
-        page.getByTestId("table-view").locator("tbody tr"),
-      ).toHaveCount(66);
+        page.getByTestId("table-view").locator('[data-testid^="row-"]'),
+      ).toHaveCount(10);
     }
   });
 
@@ -119,14 +136,20 @@ test.describe("mengurutkan", () => {
     await page.getByTestId("sort-progress").click();
 
     const values = (await columnText(page, "row-")).length;
-    expect(values).toBe(66);
+    expect(values).toBe(10);
 
-    const first = page.getByTestId("table-view").locator("tbody tr").first();
+    const first = page
+      .getByTestId("table-view")
+      .locator('[data-testid^="row-"]')
+      .first();
     await expect(first).toContainText("0%");
 
     await page.getByTestId("sort-progress").click();
     await expect(
-      page.getByTestId("table-view").locator("tbody tr").first(),
+      page
+        .getByTestId("table-view")
+        .locator('[data-testid^="row-"]')
+        .first(),
     ).toContainText("100%");
   });
 });

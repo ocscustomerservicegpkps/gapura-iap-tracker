@@ -1,5 +1,18 @@
 import type { OverdueFlag, Status } from "@/domain/types";
 
+/** English UI labels; stored sheet values remain in Indonesian. */
+export const STATUS_LABEL: Record<Status, string> = {
+  Selesai: "Completed",
+  "Sedang Berjalan": "Ongoing",
+  "Belum Dimulai": "Not Started",
+};
+
+export const OVERDUE_LABEL: Record<OverdueFlag, string> = {
+  TERLAMBAT: "Overdue",
+  "Sesuai Rencana": "On Track",
+  "-": "-",
+};
+
 /** Pill classes, mirroring the original dashboard's colour coding. */
 export const STATUS_PILL: Record<Status, string> = {
   Selesai: "bg-done-soft text-done-ink",

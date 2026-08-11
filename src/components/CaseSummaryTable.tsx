@@ -49,14 +49,14 @@ export function CaseSummaryTable({
               <Th>Judul Kasus</Th>
               <Th center>Total</Th>
               <Th center className="text-done">
-                Selesai
+                Completed
               </Th>
               <Th center className="text-running">
-                Berjalan
+                Ongoing
               </Th>
-              <Th center>Belum Mulai</Th>
+              <Th center>Not Started</Th>
               <Th center className="text-late">
-                Terlambat
+                Overdue
               </Th>
               <Th right>Aksi</Th>
             </tr>

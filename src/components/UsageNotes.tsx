@@ -15,17 +15,17 @@ export function UsageNotes() {
           mengubahnya di sana.
         </li>
         <li>
-          Gunakan kotak pencarian, filter ID IAP / Status, serta tombol Terlambat dan
+          Gunakan kotak pencarian, filter ID IAP / Status, serta tombol Overdue dan
           Jatuh tempo ≤ 7 hari untuk menyaring item. Klik judul kolom untuk mengurutkan.
         </li>
         <li>
           Tombol <b>Ubah</b> pada setiap baris membuka formulir item aksi: status,
           % progres, tanggal target, tanggal selesai aktual, dan bukti/catatan.
-          Menandai item <b>Selesai</b> otomatis menetapkan progres 100% dan
+          Menandai item <b>Completed</b> otomatis menetapkan progres 100% dan
           mewajibkan Tanggal Selesai Aktual.
         </li>
         <li>
-          Kolom <b>Status Terlambat</b> tidak lagi diisi manual. Nilainya dihitung
+          Kolom <b>Overdue Status</b> tidak lagi diisi manual. Nilainya dihitung
           otomatis dari Tanggal Target terhadap tanggal hari ini di zona waktu
           Asia/Jakarta, dan ikut ditulis ke spreadsheet setiap kali sebuah baris
           disimpan.

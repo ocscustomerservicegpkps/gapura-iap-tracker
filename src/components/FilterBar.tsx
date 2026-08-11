@@ -7,6 +7,7 @@ import {
   type FilterCriteria,
 } from "@/domain/filter";
 import { STATUSES, type Status } from "@/domain/types";
+import { STATUS_LABEL } from "./status-styles";
 
 interface FilterBarProps {
   criteria: FilterCriteria;
@@ -69,7 +70,7 @@ export function FilterBar({
         <option value={ANY}>Semua Status</option>
         {STATUSES.map((status) => (
           <option key={status} value={status}>
-            {status}
+            {STATUS_LABEL[status]}
           </option>
         ))}
       </select>
@@ -80,7 +81,7 @@ export function FilterBar({
         testId="filter-overdue"
         activeClass="border-late bg-late-soft text-late-ink"
       >
-        Terlambat ({overdueCount})
+        Overdue ({overdueCount})
       </Toggle>
 
       <Toggle

@@ -94,7 +94,7 @@ const DUE_BUCKETS: ReadonlyArray<{
   late: boolean;
   holds: (daysToTarget: number | null) => boolean;
 }> = [
-  { label: "Terlambat", late: true, holds: (d) => d !== null && d < 0 },
+  { label: "Overdue", late: true, holds: (d) => d !== null && d < 0 },
   { label: "≤ 7 hari", late: false, holds: (d) => d !== null && d <= 7 },
   { label: "8–14 hari", late: false, holds: (d) => d !== null && d <= 14 },
   { label: "15–30 hari", late: false, holds: (d) => d !== null && d <= 30 },

@@ -33,7 +33,7 @@ test.describe("penurunan status terlambat", () => {
     await page.getByTestId("item-save").click();
     await expectModalClosed(page, "item-modal");
 
-    await expect(page.getByTestId("overdue-GA254-4")).toHaveText("TERLAMBAT");
+    await expect(page.getByTestId("overdue-GA254-4")).toHaveText("Overdue");
     expect(findRow(await readDataRows(request), "GA254", 4)[COL.overdue]).toBe(
       "TERLAMBAT",
     );
@@ -47,7 +47,7 @@ test.describe("penurunan status terlambat", () => {
     await expectModalClosed(page, "item-modal");
 
     await expect(page.getByTestId("overdue-GA254-4")).toHaveText(
-      "Sesuai Rencana",
+      "On Track",
     );
   });
 
@@ -59,7 +59,7 @@ test.describe("penurunan status terlambat", () => {
     await expectModalClosed(page, "item-modal");
 
     await expect(page.getByTestId("overdue-GA254-4")).toHaveText(
-      "Sesuai Rencana",
+      "On Track",
     );
   });
 
@@ -93,7 +93,7 @@ test.describe("penurunan status terlambat", () => {
     await page.getByTestId("item-save").click();
     await expectModalClosed(page, "item-modal");
 
-    await expect(page.getByTestId("overdue-GA254-4")).toHaveText("TERLAMBAT");
+    await expect(page.getByTestId("overdue-GA254-4")).toHaveText("Overdue");
     await expect(page.getByTestId("kpi-overdue")).toHaveText(
       String(Number(overdueBefore) + 1),
     );

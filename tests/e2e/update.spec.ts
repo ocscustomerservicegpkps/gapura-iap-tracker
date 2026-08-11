@@ -143,7 +143,7 @@ test.describe("memperbarui item aksi", () => {
     expect(row[COL.targetDate]).toBe("31 Des 2026");
     expect(row[COL.overdue]).toBe("Sesuai Rencana");
     await expect(page.getByTestId("overdue-HU702-3")).toHaveText(
-      "Sesuai Rencana",
+      "On Track",
     );
   });
 });

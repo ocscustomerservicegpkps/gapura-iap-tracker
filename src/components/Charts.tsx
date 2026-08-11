@@ -8,7 +8,7 @@ import {
   type Status,
   type Totals,
 } from "@/domain/types";
-import { LATE_COLOR, STATUS_COLOR } from "./status-styles";
+import { LATE_COLOR, STATUS_COLOR, STATUS_LABEL } from "./status-styles";
 
 interface ChartsProps {
   items: readonly DerivedActionItem[];
@@ -94,7 +94,7 @@ function StatusDonut({
               strokeDashoffset={-offset}
               transform="rotate(-90 70 70)"
             >
-              <title>{`${status}: ${value}`}</title>
+              <title>{`${STATUS_LABEL[status]}: ${value}`}</title>
             </circle>
           );
           offset += length;
@@ -125,7 +125,7 @@ function StatusDonut({
               className="inline-block h-[10px] w-[10px] rounded-[3px]"
               style={{ background: STATUS_COLOR[status] }}
             />
-            <span className="text-muted">{status}</span>
+            <span className="text-muted">{STATUS_LABEL[status]}</span>
             <span className="font-semibold text-ink">{counts[status]}</span>
           </li>
         ))}
@@ -149,7 +149,7 @@ function CaseBars({ byCase }: { byCase: readonly CaseSummary[] }) {
             </span>
             <span
               className="flex h-[16px] flex-1 overflow-hidden rounded-[4px] bg-idle-soft"
-              title={`${summary.iapId}: ${summary.closed} selesai, ${summary.inProgress} berjalan, ${summary.open} belum dimulai`}
+              title={`${summary.iapId}: ${summary.closed} completed, ${summary.inProgress} ongoing, ${summary.open} not started`}
             >
               {STATUSES.map((status) => {
                 const value = countsByStatus(summary)[status];
@@ -176,7 +176,7 @@ function CaseBars({ byCase }: { byCase: readonly CaseSummary[] }) {
       </ul>
       <Legend
         items={STATUSES.map((status) => ({
-          label: status,
+          label: STATUS_LABEL[status],
           color: STATUS_COLOR[status],
         }))}
       />
@@ -237,8 +237,8 @@ function DueChart({ buckets }: { buckets: readonly DueBucket[] }) {
       </ul>
       <Legend
         items={[
-          { label: "Terlambat", color: LATE_COLOR },
-          { label: "Belum jatuh tempo", color: "oklch(45% 0.1 160)" },
+          { label: "Overdue", color: LATE_COLOR },
+          { label: "Not Yet Due", color: "oklch(45% 0.1 160)" },
         ]}
       />
     </>

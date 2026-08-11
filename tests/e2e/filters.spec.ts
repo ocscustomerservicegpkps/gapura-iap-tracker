@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openDashboard, resetSheet } from "./helpers";
 
-const rows = (page: Page) => page.getByTestId("table-view").locator("tbody tr");
+const rows = (page: Page) =>
+  page.getByTestId("table-view").locator('[data-testid^="row-"]');
 
 test.beforeEach(async ({ page, request }) => {
   await resetSheet(request);
@@ -21,8 +22,11 @@ test.describe("menyaring dan mencari", () => {
   test("filter status menampilkan hanya status terpilih", async ({ page }) => {
     await page.getByTestId("filter-status").selectOption("Belum Dimulai");
 
-    await expect(rows(page)).toHaveCount(18);
-    await expect(rows(page).first()).toContainText("Belum Dimulai");
+    await expect(rows(page)).toHaveCount(10);
+    await expect(page.getByTestId("result-count")).toHaveText(
+      "Menampilkan 18 dari 66 item aksi.",
+    );
+    await expect(rows(page).first()).toContainText("Not Started");
   });
 
   test("pencarian mencakup kasus, PIC, teks langkah dan bukti", async ({
@@ -48,12 +52,15 @@ test.describe("menyaring dan mencari", () => {
   }) => {
     await page.getByTestId("filter-overdue").click();
 
-    await expect(rows(page)).toHaveCount(11);
+    await expect(rows(page)).toHaveCount(10);
+    await expect(page.getByTestId("result-count")).toHaveText(
+      "Menampilkan 11 dari 66 item aksi.",
+    );
     for (const cell of await page
       .getByTestId("table-view")
       .locator('[data-testid^="overdue-"]')
       .all()) {
-      await expect(cell).toHaveText("TERLAMBAT");
+      await expect(cell).toHaveText("Overdue");
     }
   });
 
@@ -62,7 +69,7 @@ test.describe("menyaring dan mencari", () => {
   }) => {
     await page.getByTestId("filter-due-soon").click();
 
-    await expect(rows(page)).toHaveCount(13);
+    await expect(rows(page)).toHaveCount(10);
     await expect(page.getByTestId("result-count")).toHaveText(
       "Menampilkan 13 dari 66 item aksi.",
     );
@@ -96,7 +103,10 @@ test.describe("menyaring dan mencari", () => {
 
     await page.getByTestId("filter-clear").click();
 
-    await expect(rows(page)).toHaveCount(66);
+    await expect(rows(page)).toHaveCount(10);
+    await expect(page.getByTestId("result-count")).toHaveText(
+      "Menampilkan 66 dari 66 item aksi.",
+    );
     await expect(page.getByTestId("filter-search")).toHaveValue("");
     await expect(page.getByTestId("filter-clear")).toHaveCount(0);
   });

@@ -2,6 +2,7 @@
 
 import { STATUSES, type Status } from "@/domain/types";
 import type { FieldErrors, StepInput } from "@/domain/validate";
+import { STATUS_LABEL } from "./status-styles";
 
 /**
  * One step as the form holds it — the same shape the validator accepts, so what the
@@ -119,7 +120,7 @@ export function StepFields({
         >
           {STATUSES.map((status) => (
             <option key={status} value={status}>
-              {status}
+              {STATUS_LABEL[status]}
             </option>
           ))}
         </select>

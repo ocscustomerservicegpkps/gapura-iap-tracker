@@ -7,7 +7,7 @@ import { deriveOverdue } from "@/domain/overdue";
 import type { DerivedActionItem } from "@/domain/types";
 import type { FieldErrors } from "@/domain/validate";
 import { Modal } from "./Modal";
-import { OVERDUE_PILL } from "./status-styles";
+import { OVERDUE_LABEL, OVERDUE_PILL } from "./status-styles";
 import { EMPTY_STEP, StepFields, type StepFormState } from "./StepFields";
 import { runAction } from "./run-action";
 
@@ -114,13 +114,13 @@ export function ItemModal({
         />
         <Readout label="Stasiun / Pihak Terkait" value={caseStation || "—"} />
         <div>
-          <dt className="font-semibold text-label">Status Terlambat</dt>
+          <dt className="font-semibold text-label">Overdue Status</dt>
           <dd className="mt-1">
             <span
               className={`pill ${OVERDUE_PILL[overdue]}`}
               data-testid="item-overdue-preview"
             >
-              {overdue}
+              {OVERDUE_LABEL[overdue]}
             </span>
           </dd>
         </div>
@@ -131,7 +131,7 @@ export function ItemModal({
       <p className="mt-3 text-[11px] text-faint">
         Tanggal disimpan ke spreadsheet dalam format Indonesia
         {form.targetDate ? ` (contoh: ${formatTrackerDate(form.targetDate)})` : ""}.
-        Kolom Status Terlambat dihitung otomatis dan ikut diperbarui saat menyimpan.
+        Kolom Overdue Status dihitung otomatis dan ikut diperbarui saat menyimpan.
       </p>
     </Modal>
   );

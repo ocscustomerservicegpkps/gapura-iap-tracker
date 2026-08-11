@@ -63,7 +63,7 @@ test.describe("tampilan telepon", () => {
     await page.getByTestId("item-save").click();
 
     await expectModalClosed(page, "item-modal");
-    await expect(page.getByTestId("card-HU702-4")).toContainText("Selesai");
+    await expect(page.getByTestId("card-HU702-4")).toContainText("Completed");
     await expect(page.getByTestId("card-HU702-4")).toContainText("100%");
 
     const row = findRow(await readDataRows(request), "HU702", 4);
