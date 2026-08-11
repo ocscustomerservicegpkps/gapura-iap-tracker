@@ -1,0 +1,164 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens lifted from the original static dashboard so the two read as one
+ * system. Light theme only — dark mode was explicitly declined.
+ */
+@theme {
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", Helvetica, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-canvas: oklch(97.5% 0.004 250);
+  --color-surface: oklch(100% 0 0);
+  --color-line: oklch(91% 0.005 250);
+  --color-line-soft: oklch(94% 0.003 250);
+  --color-line-strong: oklch(88% 0.005 250);
+  --color-head: oklch(96% 0.006 250);
+
+  --color-ink: oklch(22% 0.01 250);
+  --color-ink-strong: oklch(18% 0.01 250);
+  --color-ink-mid: oklch(38% 0.01 250);
+  --color-muted: oklch(48% 0.01 250);
+  --color-faint: oklch(52% 0.01 250);
+  --color-label: oklch(50% 0.01 250);
+
+  /* Unfilled part of every progress track — bars, meters, donut ring. */
+  --color-track: oklch(93% 0.004 250);
+
+  --color-accent: oklch(45% 0.1 160);
+  --color-accent-deep: oklch(38% 0.13 160);
+
+  --color-done: oklch(42% 0.13 145);
+  --color-done-soft: oklch(94% 0.06 145);
+  --color-done-ink: oklch(35% 0.13 145);
+  --color-done-bar: oklch(55% 0.14 145);
+
+  --color-running: oklch(48% 0.14 70);
+  --color-running-soft: oklch(95% 0.07 70);
+  --color-running-ink: oklch(42% 0.14 70);
+  --color-running-bar: oklch(62% 0.14 70);
+
+  --color-idle: oklch(45% 0.01 250);
+  --color-idle-soft: oklch(94% 0.006 250);
+  --color-idle-ink: oklch(42% 0.01 250);
+  --color-idle-bar: oklch(85% 0.01 250);
+  /* Chart fill for "Not Started": carries white numerals at 4.84:1. */
+  --color-idle-fill: oklch(55% 0.02 250);
+
+  --color-late: oklch(50% 0.17 25);
+  --color-late-soft: oklch(94% 0.07 25);
+  --color-late-ink: oklch(46% 0.17 25);
+
+  --color-plan-soft: oklch(95% 0.05 160);
+  --color-plan-ink: oklch(40% 0.11 160);
+  --color-mid-bar: oklch(60% 0.13 160);
+
+  --radius-card: 10px;
+}
+
+::selection {
+  background: oklch(80% 0.06 160);
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-accent);
+}
+a:hover {
+  color: var(--color-accent-deep);
+}
+
+/* Focus ring that reads on every surface without fighting the palette. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+  }
+
+  .field {
+    width: 100%;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 7px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+  }
+
+  .field:disabled {
+    background: var(--color-idle-soft);
+    color: var(--color-faint);
+  }
+
+  .label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--color-label);
+    margin-bottom: 4px;
+  }
+
+  .btn {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--color-line-strong);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: var(--color-head);
+  }
+
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: oklch(100% 0 0);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-accent-deep);
+  }
+
+  .btn-danger {
+    background: var(--color-late);
+    border-color: var(--color-late);
+    color: oklch(100% 0 0);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: oklch(44% 0.17 25);
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
