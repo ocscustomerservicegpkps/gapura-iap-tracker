@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { createItemAction, saveItemAction } from "@/app/actions";
 import { formatTrackerDate } from "@/domain/dates";
 import { deriveOverdue } from "@/domain/overdue";
@@ -8,8 +8,15 @@ import type { DerivedActionItem } from "@/domain/types";
 import type { FieldErrors } from "@/domain/validate";
 import { Modal } from "./Modal";
 import { OVERDUE_LABEL, OVERDUE_PILL } from "./status-styles";
-import { EMPTY_STEP, StepFields, type StepFormState } from "./StepFields";
+import {
+  EMPTY_STEP,
+  NO_SUGGESTIONS,
+  StepFields,
+  type StepFormState,
+  type Suggestions,
+} from "./StepFields";
 import { runAction } from "./run-action";
+import { useErrorFocus } from "./use-error-focus";
 
 interface ItemModalProps {
   /** The row being edited, or null when adding a step to `iapId`. */
@@ -18,6 +25,7 @@ interface ItemModalProps {
   caseTitle: string;
   caseStation: string;
   today: string;
+  suggestions?: Suggestions;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -33,6 +41,7 @@ function toFormState(item: DerivedActionItem): StepFormState {
     progress: item.progress,
     actualDate: item.actualIso ?? "",
     evidence: item.evidence,
+    evidenceLink: item.evidenceLink,
   };
 }
 
@@ -42,6 +51,7 @@ export function ItemModal({
   caseTitle,
   caseStation,
   today,
+  suggestions = NO_SUGGESTIONS,
   onClose,
   onSaved,
 }: ItemModalProps) {
@@ -50,6 +60,13 @@ export function ItemModal({
   );
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, startTransition] = useTransition();
+
+  // What the form held when it opened, so "unsaved" means actually changed rather
+  // than merely visited.
+  const opened = useRef(form);
+  const dirty = JSON.stringify(form) !== JSON.stringify(opened.current);
+
+  useErrorFocus(errors);
 
   const isNew = item === null;
   // Column N is derived, so the modal can show what the save will store.
@@ -78,6 +95,7 @@ export function ItemModal({
       title={isNew ? "Tambah Item Aksi" : `Ubah Langkah ${item.stepNo}`}
       subtitle={`${iapId} — ${caseTitle}`}
       onClose={onClose}
+      dirty={dirty}
       testId="item-modal"
       footer={
         <>
@@ -126,7 +144,12 @@ export function ItemModal({
         </div>
       </dl>
 
-      <StepFields value={form} onChange={setForm} errors={errors} />
+      <StepFields
+        value={form}
+        onChange={setForm}
+        errors={errors}
+        suggestions={suggestions}
+      />
 
       <p className="mt-3 text-[11px] text-faint">
         Tanggal disimpan ke spreadsheet dalam format Indonesia

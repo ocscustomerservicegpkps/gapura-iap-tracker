@@ -19,8 +19,11 @@
   --color-ink-strong: oklch(18% 0.01 250);
   --color-ink-mid: oklch(38% 0.01 250);
   --color-muted: oklch(48% 0.01 250);
-  --color-faint: oklch(55% 0.01 250);
+  --color-faint: oklch(52% 0.01 250);
   --color-label: oklch(50% 0.01 250);
+
+  /* Unfilled part of every progress track — bars, meters, donut ring. */
+  --color-track: oklch(93% 0.004 250);
 
   --color-accent: oklch(45% 0.1 160);
   --color-accent-deep: oklch(38% 0.13 160);
@@ -39,6 +42,8 @@
   --color-idle-soft: oklch(94% 0.006 250);
   --color-idle-ink: oklch(42% 0.01 250);
   --color-idle-bar: oklch(85% 0.01 250);
+  /* Chart fill for "Not Started": carries white numerals at 4.84:1. */
+  --color-idle-fill: oklch(55% 0.02 250);
 
   --color-late: oklch(50% 0.17 25);
   --color-late-soft: oklch(94% 0.07 25);

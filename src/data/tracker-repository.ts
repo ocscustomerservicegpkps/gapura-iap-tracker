@@ -14,7 +14,7 @@ export const TRACKER_TAG = "tracker";
 
 /** Row 1 is the header and is never touched. */
 const FIRST_DATA_ROW = 2;
-const DATA_RANGE = `${TRACKER_TAB}!A${FIRST_DATA_ROW}:O`;
+const DATA_RANGE = `${TRACKER_TAB}!A${FIRST_DATA_ROW}:Q`;
 
 /** Cache window. One Sheets read serves every visitor inside it. */
 const REVALIDATE_SECONDS = 60;
@@ -62,7 +62,7 @@ export const readItems = unstable_cache(readItemsUncached, ["tracker-items"], {
   tags: [TRACKER_TAG],
 });
 
-function rowRange(rowNumber: number, from = "A", to = "O"): string {
+function rowRange(rowNumber: number, from = "A", to = "Q"): string {
   return `${TRACKER_TAB}!${from}${rowNumber}:${to}${rowNumber}`;
 }
 
@@ -127,6 +127,7 @@ function applyStep(
       progress: input.progress,
       actualDate: input.actualDate,
       evidence: input.evidence,
+      evidenceLink: input.evidenceLink,
     },
     today,
   );
@@ -220,6 +221,8 @@ export async function createCase(input: CaseInput): Promise<MutationResult> {
     actualDate: "",
     storedOverdue: "",
     evidence: "",
+    contextNote: "",
+    evidenceLink: "",
   };
 
   const newRows = input.steps.map((step, index) =>

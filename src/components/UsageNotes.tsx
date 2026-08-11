@@ -1,5 +1,3 @@
-import { CASE_CONTEXT } from "@/data/case-context";
-
 /** Kept from the original dashboard, updated for what the app now does automatically. */
 export function UsageNotes() {
   return (
@@ -31,23 +29,20 @@ export function UsageNotes() {
           disimpan.
         </li>
         <li>
-          Kasus IAP baru dibuat melalui tombol <b>+ Kasus IAP Baru</b>; nomor langkah
-          diberikan otomatis. Menghapus item atau kasus selalu meminta konfirmasi dan
-          menyebutkan jumlah baris yang terhapus.
+          Kasus IAP baru dibuat melalui tombol <b>+ Kasus IAP Baru</b>. Formulirnya
+          mengikuti struktur dokumen IAP: identitas kasus, konteks dokumen, lalu
+          matriks langkah perbaikan yang dapat ditambah, diurutkan ulang, dan dihapus
+          sebelum disimpan. Nomor langkah diberikan otomatis dari urutannya.
         </li>
         <li>
           Tombol <b>Konteks</b> pada ringkasan per kasus menampilkan insiden asal,
-          pihak terkait, analisis akar masalah, dan Parameter Keberhasilan (KPI) dari
-          dokumen IAP sumber.
+          pihak terkait, referensi surat peringatan, analisis akar masalah, Parameter
+          Keberhasilan (KPI), dan komitmen manajemen. Bertuliskan <b>+ Konteks</b>{" "}
+          bila kasus itu belum punya — semuanya dapat diisi dan diubah dari dalam
+          aplikasi, tersimpan di tab <b>Konteks</b> pada spreadsheet yang sama.
+          Bagian yang kosong tidak ditampilkan.
         </li>
       </ol>
-      <p className="mt-3.5 border-t border-line-soft pt-3.5 text-[11.5px] leading-relaxed text-faint">
-        Sumber dokumen:{" "}
-        {Object.entries(CASE_CONTEXT)
-          .map(([iapId, context]) => `${context.sourceDocument} (${iapId})`)
-          .join(", ")}
-        .
-      </p>
     </section>
   );
 }

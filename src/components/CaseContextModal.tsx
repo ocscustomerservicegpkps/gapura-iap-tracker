@@ -1,24 +1,29 @@
 "use client";
 
-import type { CaseContext } from "@/data/case-context";
+import { hasContext, type CaseContext } from "@/domain/context";
 import type { CaseSummary } from "@/domain/types";
 import { Modal } from "./Modal";
 
 interface CaseContextModalProps {
   summary: CaseSummary;
   context: CaseContext | null;
+  onEdit: () => void;
   onClose: () => void;
 }
 
 /**
- * Read-only background from the originating IAP document. Nothing here is stored in
- * the spreadsheet — it exists so a case can be judged without opening the source file.
+ * The source IAP document's own framing, read-only. Sections the case has nothing
+ * for are left out rather than shown empty — a case raised in the app has no
+ * warning letter to cite and no file to point at.
  */
 export function CaseContextModal({
   summary,
   context,
+  onEdit,
   onClose,
 }: CaseContextModalProps) {
+  const filled = hasContext(context);
+
   return (
     <Modal
       title={`${summary.iapId} — Konteks Kasus`}
@@ -26,62 +31,72 @@ export function CaseContextModal({
       onClose={onClose}
       testId="case-context-modal"
       footer={
-        <button type="button" className="btn" onClick={onClose}>
-          Tutup
-        </button>
+        <>
+          <button type="button" className="btn" onClick={onClose}>
+            Tutup
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={onEdit}
+            data-testid="case-context-edit"
+          >
+            {filled ? "Ubah Konteks" : "Isi Konteks"}
+          </button>
+        </>
       }
     >
-      {context ? (
+      {filled && context ? (
         <div className="space-y-4 text-[13px] leading-relaxed">
           <Section title="Kasus / Insiden">{context.incident}</Section>
           <Section title="Pihak Terkait">{context.parties}</Section>
           <Section title="Tujuan Dokumen">{context.purpose}</Section>
           <Section title="Tanggal Efektif">{context.effectiveDate}</Section>
-          <Section title="Analisis Akar Masalah">{context.rootCause}</Section>
+          <Section title="Latar Belakang & Analisis Akar Masalah">
+            {context.rootCause}
+          </Section>
 
-          <div>
-            <h3 className="mb-2 text-[11.5px] font-bold tracking-[0.06em] text-label uppercase">
-              Parameter Keberhasilan (KPI)
-            </h3>
-            <ul
-              className="list-disc space-y-2 pl-5 text-ink-mid"
-              data-testid="case-context-kpis"
-            >
-              {context.kpis.map((kpi) => (
-                <li key={kpi}>{kpi}</li>
-              ))}
-            </ul>
-          </div>
-
-          <p className="border-t border-line-soft pt-3 text-[11.5px] text-faint">
-            Sumber dokumen:{" "}
-            <span className="font-mono">{context.sourceDocument}</span>
-          </p>
+          {context.kpis.length > 0 ? (
+            <div>
+              <Heading>Parameter Keberhasilan (KPI)</Heading>
+              <ul
+                className="list-disc space-y-2 pl-5 text-ink-mid"
+                data-testid="case-context-kpis"
+              >
+                {context.kpis.map((kpi) => (
+                  <li key={kpi}>{kpi}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : (
-        <p className="text-[13px] text-faint">
-          Belum ada konteks dokumen sumber untuk kasus{" "}
-          <span className="font-mono">{summary.iapId}</span>. Kasus yang dibuat
-          melalui aplikasi tidak memiliki dokumen sumber terlampir.
+        <p className="text-[13px] text-faint" data-testid="case-context-empty">
+          Belum ada konteks untuk kasus{" "}
+          <span className="font-mono">{summary.iapId}</span>. Gunakan{" "}
+          <b>Isi Konteks</b> untuk menuliskan insiden, akar masalah, dan Parameter
+          Keberhasilan dari dokumen IAP-nya.
         </p>
       )}
     </Modal>
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+/** Renders nothing when the case has nothing to say under this heading. */
+function Section({ title, children }: { title: string; children: string }) {
+  if (!children.trim()) return null;
   return (
     <div>
-      <h3 className="mb-1 text-[11.5px] font-bold tracking-[0.06em] text-label uppercase">
-        {title}
-      </h3>
-      <p className="text-ink-mid">{children}</p>
+      <Heading>{title}</Heading>
+      <p className="whitespace-pre-line text-ink-mid">{children}</p>
     </div>
+  );
+}
+
+function Heading({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="mb-1 text-[11.5px] font-bold tracking-[0.06em] text-label uppercase">
+      {children}
+    </h3>
   );
 }

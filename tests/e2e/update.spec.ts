@@ -8,6 +8,7 @@ import {
   openDashboard,
   readDataRows,
   resetSheet,
+  revealItem,
 } from "./helpers";
 
 test.beforeEach(async ({ page, request }) => {
@@ -64,6 +65,8 @@ test.describe("memperbarui item aksi", () => {
 
     const row = findRow(await readDataRows(request), "IP200", 4);
     expect(row[COL.targetDate]).toBe("1 Des 2026");
+    // Saving re-renders the table, which resets its page size — page back to the row.
+    await revealItem(page, "IP200", 4);
     await expect(page.getByTestId("target-IP200-4")).toHaveText("1 Des 2026");
   });
 

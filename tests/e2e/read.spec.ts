@@ -39,7 +39,8 @@ test.describe("membaca tracker", () => {
 
     for (const [iapId, total] of expected) {
       const row = page.getByTestId(`case-row-${iapId}`);
-      await expect(row.locator("td").nth(2)).toHaveText(String(total));
+      // The ID cell is a row header (`th`), so Total is the first `td`.
+      await expect(row.locator("td").nth(1)).toHaveText(String(total));
     }
   });
 
@@ -83,7 +84,7 @@ test.describe("membaca tracker", () => {
     );
   });
 
-  test("konteks dokumen sumber tersedia per kasus", async ({ page }) => {
+  test("konteks kasus menampilkan enam bidang standar", async ({ page }) => {
     await openDashboard(page);
 
     await page.getByTestId("case-context-GA159").click();
@@ -92,10 +93,15 @@ test.describe("membaca tracker", () => {
     await expect(modal).toContainText("Kasus / Insiden");
     await expect(modal).toContainText("Threads");
     await expect(modal).toContainText("Pihak Terkait");
-    await expect(modal).toContainText("Analisis Akar Masalah");
+    await expect(modal).toContainText("Tujuan Dokumen");
+    await expect(modal).toContainText("Tanggal Efektif");
+    await expect(modal).toContainText("Latar Belakang & Analisis Akar Masalah");
     await expect(modal).toContainText("Parameter Keberhasilan");
     await expect(modal.getByTestId("case-context-kpis").locator("li")).toHaveCount(6);
-    await expect(modal).toContainText("Improvement_Action_Plan_GA159_BTH.pdf");
+    // The standard has six fields and no seventh: no filename is shown anywhere.
+    await expect(modal).not.toContainText("Sumber dokumen");
+    await expect(modal).not.toContainText(".pdf");
+    await expect(modal).not.toContainText(".docx");
   });
 
   test("grafik ringkasan ditampilkan", async ({ page }) => {

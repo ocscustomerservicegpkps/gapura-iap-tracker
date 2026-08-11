@@ -1,14 +1,23 @@
 import "server-only";
 
+import contextFixture from "@/fixtures/context-fixture.json";
 import fixture from "@/fixtures/tracker-fixture.json";
 import type { CellValue } from "@/domain/rows";
-import { googleCredentials, TRACKER_TAB } from "./config";
+import { CONTEXT_TAB, googleCredentials, TRACKER_TAB } from "./config";
 import { GoogleSheetsTransport } from "./google-transport";
 import { MemorySheetsTransport } from "./memory-transport";
 import type { SheetsTransport } from "./transport";
 
 /** The 66-row snapshot the offline transport starts from, header row included. */
 export const TRACKER_FIXTURE = fixture as CellValue[][];
+
+/** The nine documented cases' context, header row included. */
+export const CONTEXT_FIXTURE = contextFixture as CellValue[][];
+
+const OFFLINE_SHEET = {
+  [TRACKER_TAB]: TRACKER_FIXTURE,
+  [CONTEXT_TAB]: CONTEXT_FIXTURE,
+};
 
 type TransportKind = "google" | "memory";
 
@@ -30,7 +39,7 @@ const store = globalThis as typeof globalThis & {
 
 function buildTransport(): SheetsTransport {
   return transportKind() === "memory"
-    ? new MemorySheetsTransport({ [TRACKER_TAB]: TRACKER_FIXTURE })
+    ? new MemorySheetsTransport(OFFLINE_SHEET)
     : new GoogleSheetsTransport(googleCredentials());
 }
 
@@ -41,7 +50,7 @@ export function getTransport(): SheetsTransport {
 
 /** Restore the offline sheet to the 66-row fixture. Only valid for the fake. */
 export function resetMemoryTransport(): void {
-  memoryTransport().reset({ [TRACKER_TAB]: TRACKER_FIXTURE });
+  memoryTransport().reset(OFFLINE_SHEET);
 }
 
 /** The offline sheet's raw grid, so tests can assert on stored cells. */
@@ -57,5 +66,5 @@ function memoryTransport(): MemorySheetsTransport {
   return transport;
 }
 
-export { DASHBOARD_TAB, TRACKER_TAB } from "./config";
+export { CONTEXT_TAB, DASHBOARD_TAB, TRACKER_TAB } from "./config";
 export type { SheetsTransport } from "./transport";

@@ -3,8 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteCaseAction, deleteItemAction } from "@/app/actions";
-import type { CaseContext } from "@/data/case-context";
 import { caseIds, summariseByCase, summariseTotals } from "@/domain/aggregate";
+import { hasContext, type CaseContext } from "@/domain/context";
 import { formatTrackerDateLong } from "@/domain/dates";
 import {
   ANY,
@@ -27,6 +27,7 @@ import { FilterBar } from "./FilterBar";
 import { ItemModal } from "./ItemModal";
 import { KpiCards } from "./KpiCards";
 import { runAction } from "./run-action";
+import type { Suggestions } from "./StepFields";
 import { UsageNotes } from "./UsageNotes";
 
 interface DashboardProps {
@@ -41,10 +42,20 @@ type Dialog =
   | { kind: "edit-item"; item: DerivedActionItem }
   | { kind: "new-item"; iapId: string }
   | { kind: "new-case" }
-  | { kind: "edit-case"; summary: CaseSummary }
+  | { kind: "edit-case"; summary: CaseSummary; focusContext?: boolean }
   | { kind: "case-context"; summary: CaseSummary }
   | { kind: "delete-item"; item: DerivedActionItem }
   | { kind: "delete-case"; summary: CaseSummary };
+
+/** The sheet's own vocabulary, offered back as autocomplete rather than re-typed. */
+function gatherSuggestions(items: readonly DerivedActionItem[]): Suggestions {
+  const unique = (pick: (item: DerivedActionItem) => string) =>
+    [...new Set(items.map(pick).map((v) => v.trim()).filter(Boolean))].sort();
+  return {
+    pic: unique((item) => item.pic),
+    timeline: unique((item) => item.timeline),
+  };
+}
 
 export function Dashboard({ items, today, caseContext }: DashboardProps) {
   const router = useRouter();
@@ -58,6 +69,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
   const totals = useMemo(() => summariseTotals(items), [items]);
   const byCase = useMemo(() => summariseByCase(items), [items]);
   const ids = useMemo(() => caseIds(items), [items]);
+  const suggestions = useMemo(() => gatherSuggestions(items), [items]);
 
   const rows = useMemo(
     () => sortItems(filterItems(items, criteria), sortKey, sortDirection),
@@ -107,9 +119,24 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
 
   const caseOf = (iapId: string) => byCase.find((c) => c.iapId === iapId);
 
+  // Everything behind an open dialog leaves the tab order and the accessibility
+  // tree, so the trap inside the panel has nothing left to leak into.
+  const dialogOpen = dialog.kind !== "none";
+
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-[1400px] px-4 pt-7 pb-16 sm:px-8 sm:pt-9">
+      <a
+        href="#tracker"
+        inert={dialogOpen}
+        className="sr-only rounded-[7px] bg-surface text-[13px] font-semibold text-accent focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:flex focus:min-h-[36px] focus:items-center focus:border focus:border-accent focus:px-4"
+      >
+        Lewati ke tabel tracker
+      </a>
+
+      <main
+        inert={dialogOpen}
+        className="mx-auto max-w-[1400px] px-4 pt-7 pb-16 sm:px-8 sm:pt-9"
+      >
         <header className="mb-7 flex flex-wrap items-start justify-between gap-5">
           <div>
             <p className="mb-1.5 text-[12px] font-semibold tracking-[0.12em] text-accent uppercase">
@@ -139,6 +166,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
         <CaseSummaryTable
           byCase={byCase}
           totals={totals}
+          hasContext={(iapId) => hasContext(caseContext[iapId])}
           onOpenContext={(summary) =>
             setDialog({ kind: "case-context", summary })
           }
@@ -154,7 +182,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
         <Charts items={items} byCase={byCase} totals={totals} />
 
         <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-[16px] font-bold text-ink-strong">
+          <h2 id="tracker" className="scroll-mt-4 text-[16px] font-bold text-ink-strong">
             Tabel Tracker — Seluruh Item Aksi
           </h2>
           {criteria.iapId !== ANY ? (
@@ -193,12 +221,19 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
           onDelete={(item) => setDialog({ kind: "delete-item", item })}
         />
 
-        <p className="mt-2 text-[12px] text-faint" data-testid="result-count">
+        {/* Filtering changes this line and nothing else visible above the fold, so
+            it announces itself rather than waiting to be re-read. */}
+        <p
+          className="mt-2 text-[12px] text-faint"
+          role="status"
+          aria-live="polite"
+          data-testid="result-count"
+        >
           Menampilkan {rows.length} dari {totals.total} item aksi.
         </p>
 
         <UsageNotes />
-      </div>
+      </main>
 
       {dialog.kind === "edit-item" || dialog.kind === "new-item" ? (
         <ItemModal
@@ -215,6 +250,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
               : caseOf(dialog.iapId)?.station) ?? ""
           }
           today={today}
+          suggestions={suggestions}
           onClose={close}
           onSaved={afterSave}
         />
@@ -232,6 +268,13 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
                 }
               : null
           }
+          context={
+            dialog.kind === "edit-case"
+              ? (caseContext[dialog.summary.iapId] ?? null)
+              : null
+          }
+          focusContext={dialog.kind === "edit-case" && dialog.focusContext}
+          suggestions={suggestions}
           onClose={close}
           onSaved={afterSave}
         />
@@ -241,6 +284,13 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
         <CaseContextModal
           summary={dialog.summary}
           context={caseContext[dialog.summary.iapId] ?? null}
+          onEdit={() =>
+            setDialog({
+              kind: "edit-case",
+              summary: dialog.summary,
+              focusContext: true,
+            })
+          }
           onClose={close}
         />
       ) : null}

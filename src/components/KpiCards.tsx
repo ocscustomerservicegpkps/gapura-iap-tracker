@@ -3,7 +3,7 @@
 import type { Totals } from "@/domain/types";
 
 const CARDS = [
-  { key: "total", label: "Total Item Aksi", tone: "text-[oklch(20%_0.01_250)]" },
+  { key: "total", label: "Total Item Aksi", tone: "text-ink-strong" },
   { key: "closed", label: "Completed", tone: "text-done" },
   { key: "inProgress", label: "Ongoing", tone: "text-running" },
   { key: "open", label: "Not Started", tone: "text-idle" },
@@ -15,6 +15,7 @@ export function KpiCards({ totals }: { totals: Totals }) {
   return (
     <section
       className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-[14px]"
+      aria-label="Angka ringkasan"
       data-testid="kpi-cards"
     >
       {CARDS.map((card) => (

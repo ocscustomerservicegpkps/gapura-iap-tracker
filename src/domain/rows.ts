@@ -1,7 +1,10 @@
 import { STATUSES, type ActionItem, type Status } from "./types";
 
-/** Columns A–O. The `Tracker` schema is fixed; nothing here may reorder or extend it. */
-export const TRACKER_COLUMN_COUNT = 15;
+/**
+ * Columns A–Q, matching the live sheet's own header row. Nothing here may reorder
+ * A–O; P (`Konteks`) and Q (`Link Evidence`) already existed there.
+ */
+export const TRACKER_COLUMN_COUNT = 17;
 
 /** A cell as written back to the sheet. Columns A, E and L are numeric there. */
 export type CellValue = string | number;
@@ -57,7 +60,25 @@ export function rowToItem(cells: readonly unknown[]): ActionItem {
     actualDate: c[12]!,
     storedOverdue: c[13]!,
     evidence: c[14]!,
+    contextNote: c[15]!,
+    evidenceLink: safeLink(c[16]!),
   };
+}
+
+/**
+ * Column Q is rendered as an `href`, so a value that is not plainly an http(s) URL is
+ * dropped on read rather than trusted. Someone editing the spreadsheet directly can
+ * type `javascript:…` into a cell; this is the boundary that stops it reaching the DOM.
+ */
+export function safeLink(raw: string): string {
+  const value = raw.trim();
+  if (value === "") return "";
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? value : "";
+  } catch {
+    return "";
+  }
 }
 
 /** Columns A, E and L stay numeric so the sheet's own cell types are preserved. */
@@ -78,5 +99,7 @@ export function itemToRow(item: ActionItem): CellValue[] {
     item.actualDate,
     item.storedOverdue,
     item.evidence,
+    item.contextNote,
+    item.evidenceLink,
   ];
 }

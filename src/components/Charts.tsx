@@ -8,7 +8,13 @@ import {
   type Status,
   type Totals,
 } from "@/domain/types";
-import { LATE_COLOR, STATUS_COLOR, STATUS_LABEL } from "./status-styles";
+import {
+  LATE_COLOR,
+  PLAN_COLOR,
+  STATUS_COLOR,
+  STATUS_LABEL,
+  TRACK_COLOR,
+} from "./status-styles";
 
 interface ChartsProps {
   items: readonly DerivedActionItem[];
@@ -24,6 +30,7 @@ export function Charts({ items, byCase, totals }: ChartsProps) {
   return (
     <section
       className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3"
+      aria-label="Grafik ringkasan"
       data-testid="charts"
     >
       <Panel title="Komposisi Status">
@@ -69,13 +76,20 @@ function StatusDonut({
 
   return (
     <div className="flex items-center gap-5">
-      <svg viewBox="0 0 140 140" className="h-[132px] w-[132px] shrink-0">
+      {/* The legend beside it already states every number in text, so the drawing
+          itself is decoration to a screen reader rather than a second reading. */}
+      <svg
+        viewBox="0 0 140 140"
+        aria-hidden
+        focusable="false"
+        className="h-[132px] w-[132px] shrink-0"
+      >
         <circle
           cx="70"
           cy="70"
           r={radius}
           fill="none"
-          stroke="oklch(93% 0.004 250)"
+          stroke={TRACK_COLOR}
           strokeWidth="18"
         />
         {STATUSES.map((status) => {
@@ -119,6 +133,7 @@ function StatusDonut({
       </svg>
 
       <ul className="space-y-2 text-[12px]">
+        <li className="sr-only">{total} item aksi seluruhnya</li>
         {STATUSES.map((status) => (
           <li key={status} className="flex items-center gap-2">
             <span
@@ -223,7 +238,7 @@ function DueChart({ buckets }: { buckets: readonly DueBucket[] }) {
                   // ponytail: min-width so the label still fits inside a tiny bar
                   minWidth: bucket.count ? "24px" : 0,
                   width: `${(bucket.count / tallest) * 100}%`,
-                  background: bucket.late ? LATE_COLOR : "oklch(45% 0.1 160)",
+                  background: bucket.late ? LATE_COLOR : PLAN_COLOR,
                 }}
               >
                 {bucket.count || null}
@@ -238,7 +253,7 @@ function DueChart({ buckets }: { buckets: readonly DueBucket[] }) {
       <Legend
         items={[
           { label: "Overdue", color: LATE_COLOR },
-          { label: "Not Yet Due", color: "oklch(45% 0.1 160)" },
+          { label: "Not Yet Due", color: PLAN_COLOR },
         ]}
       />
     </>

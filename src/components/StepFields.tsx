@@ -20,7 +20,16 @@ export const EMPTY_STEP: StepFormState = {
   progress: 0,
   actualDate: "",
   evidence: "",
+  evidenceLink: "",
 };
+
+/** Values offered by the PIC and Linimasa datalists, gathered from the sheet. */
+export interface Suggestions {
+  pic: readonly string[];
+  timeline: readonly string[];
+}
+
+export const NO_SUGGESTIONS: Suggestions = { pic: [], timeline: [] };
 
 interface StepFieldsProps {
   value: StepFormState;
@@ -28,6 +37,13 @@ interface StepFieldsProps {
   errors: FieldErrors;
   /** Prefixes both error keys and test ids when several steps share a form. */
   prefix?: string;
+  /**
+   * `compact` shows only the five columns the source IAP documents' improvement
+   * matrix has — Langkah, Rincian, PIC, Timeline, Tanggal Target. A step being
+   * planned has no progress to report yet, so the case builder does not ask.
+   */
+  variant?: "full" | "compact";
+  suggestions?: Suggestions;
 }
 
 export function StepFields({
@@ -35,6 +51,8 @@ export function StepFields({
   onChange,
   errors,
   prefix = "",
+  variant = "full",
+  suggestions = NO_SUGGESTIONS,
 }: StepFieldsProps) {
   const set = <K extends keyof StepFormState>(
     key: K,
@@ -54,11 +72,26 @@ export function StepFields({
 
   const id = (name: string) => `${prefix}${name}`;
   const error = (name: string) => errors[`${prefix}${name}`];
+  const picListId = `${prefix}pic-options`;
+  const timelineListId = `${prefix}timeline-options`;
+
+  /**
+   * Wires a control to its label and to whichever note sits under it, so the
+   * rejection message is announced as a description rather than swallowed into
+   * the field's own name.
+   */
+  const wire = (name: string, hasNote: boolean) => ({
+    id: id(name),
+    "aria-invalid": error(name) ? true : undefined,
+    "aria-describedby": hasNote || error(name) ? `${id(name)}-note` : undefined,
+  });
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <Field
+        htmlFor={id("step")}
         label="Langkah Perbaikan"
+        hint="Judul langkah, mis. “Penguatan Kontrol & Kewenangan”"
         error={error("step")}
         className="sm:col-span-2"
       >
@@ -67,11 +100,14 @@ export function StepFields({
           data-testid={id("field-step")}
           value={value.step}
           onChange={(e) => set("step", e.target.value)}
+          {...wire("step", true)}
         />
       </Field>
 
       <Field
+        htmlFor={id("action")}
         label="Detail Tindakan"
+        hint="Tindakan konkret yang dikerjakan. Satu baris per poin bila lebih dari satu."
         error={error("action")}
         className="sm:col-span-2"
       >
@@ -80,124 +116,223 @@ export function StepFields({
           data-testid={id("field-action")}
           value={value.action}
           onChange={(e) => set("action", e.target.value)}
+          {...wire("action", true)}
         />
       </Field>
 
-      <Field label="PIC (Pemilik)" error={error("pic")}>
+      <Field htmlFor={id("pic")} label="PIC (Pemilik)" error={error("pic")}>
         <input
           className="field"
+          list={suggestions.pic.length ? picListId : undefined}
           data-testid={id("field-pic")}
           value={value.pic}
           onChange={(e) => set("pic", e.target.value)}
+          {...wire("pic", false)}
         />
+        <Options id={picListId} values={suggestions.pic} />
       </Field>
 
-      <Field label="Linimasa (Target)" error={error("timeline")}>
+      <Field
+        htmlFor={id("timeline")}
+        label="Linimasa (Target)"
+        hint="Teks bebas, mis. “7–30 hari”, “Rutin Harian”, “90 hari (Berlanjut)”."
+        error={error("timeline")}
+      >
         <input
           className="field"
+          list={suggestions.timeline.length ? timelineListId : undefined}
           data-testid={id("field-timeline")}
           value={value.timeline}
           onChange={(e) => set("timeline", e.target.value)}
+          {...wire("timeline", true)}
         />
+        <Options id={timelineListId} values={suggestions.timeline} />
       </Field>
 
-      <Field label="Tanggal Target" error={error("targetDate")}>
+      <Field
+        htmlFor={id("targetDate")}
+        label="Tanggal Target"
+        error={error("targetDate")}
+        className={variant === "compact" ? "sm:col-span-2" : ""}
+      >
         <input
           type="date"
           className="field"
           data-testid={id("field-target-date")}
           value={value.targetDate}
           onChange={(e) => set("targetDate", e.target.value)}
+          {...wire("targetDate", false)}
         />
       </Field>
 
-      <Field label="Status" error={error("status")}>
-        <select
-          className="field"
-          data-testid={id("field-status")}
-          value={value.status}
-          onChange={(e) => setStatus(e.target.value as Status)}
-        >
-          {STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {STATUS_LABEL[status]}
-            </option>
-          ))}
-        </select>
-      </Field>
+      {variant === "full" ? (
+        <>
+          <Field htmlFor={id("status")} label="Status" error={error("status")}>
+            <select
+              className="field"
+              data-testid={id("field-status")}
+              value={value.status}
+              onChange={(e) => setStatus(e.target.value as Status)}
+              {...wire("status", false)}
+            >
+              {STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {STATUS_LABEL[status]}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-      <Field label="% Progres" error={error("progress")}>
-        <div className="flex items-center gap-3">
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            className="flex-1 accent-[oklch(45%_0.1_160)]"
-            aria-label="% Progres"
-            data-testid={id("field-progress-range")}
-            value={value.progress}
-            onChange={(e) => set("progress", Number(e.target.value))}
-          />
-          <input
-            type="number"
-            min={0}
-            max={100}
-            className="field w-[76px]"
-            aria-label="% Progres (angka)"
-            data-testid={id("field-progress")}
-            value={value.progress}
-            onChange={(e) => set("progress", Number(e.target.value))}
-          />
-        </div>
-      </Field>
+          {/* Two controls, one value: a group rather than a label, since a label
+              can only ever point at the first of them. */}
+          <Field
+            as="group"
+            label="% Progres"
+            error={error("progress")}
+            htmlFor={id("progress")}
+          >
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                className="flex-1 accent-accent"
+                aria-label="% Progres (geser)"
+                data-testid={id("field-progress-range")}
+                value={value.progress}
+                onChange={(e) => set("progress", Number(e.target.value))}
+              />
+              <input
+                type="number"
+                min={0}
+                max={100}
+                className="field w-[76px]"
+                aria-label="% Progres (angka)"
+                data-testid={id("field-progress")}
+                value={value.progress}
+                onChange={(e) => set("progress", Number(e.target.value))}
+                {...wire("progress", false)}
+              />
+            </div>
+          </Field>
 
-      <Field label="Tanggal Selesai Aktual" error={error("actualDate")}>
-        <input
-          type="date"
-          className="field"
-          data-testid={id("field-actual-date")}
-          value={value.actualDate}
-          onChange={(e) => set("actualDate", e.target.value)}
-        />
-      </Field>
+          <Field
+            htmlFor={id("actualDate")}
+            label="Tanggal Selesai Aktual"
+            error={error("actualDate")}
+          >
+            <input
+              type="date"
+              className="field"
+              data-testid={id("field-actual-date")}
+              value={value.actualDate}
+              onChange={(e) => set("actualDate", e.target.value)}
+              {...wire("actualDate", false)}
+            />
+          </Field>
 
-      <Field
-        label="Bukti / Catatan"
-        error={error("evidence")}
-        className="sm:col-span-2"
-      >
-        <textarea
-          className="field min-h-[64px]"
-          data-testid={id("field-evidence")}
-          value={value.evidence}
-          onChange={(e) => set("evidence", e.target.value)}
-        />
-      </Field>
+          <Field
+            htmlFor={id("evidence")}
+            label="Bukti / Catatan"
+            hint="Apa buktinya dan di mana. Lampirkan tautannya di bawah."
+            error={error("evidence")}
+            className="sm:col-span-2"
+          >
+            <textarea
+              className="field min-h-[64px]"
+              data-testid={id("field-evidence")}
+              value={value.evidence}
+              onChange={(e) => set("evidence", e.target.value)}
+              {...wire("evidence", true)}
+            />
+          </Field>
+
+          <Field
+            htmlFor={id("evidenceLink")}
+            label="Link Evidence"
+            hint="URL lengkap (http:// atau https://) ke folder Drive, foto, atau daftar hadir."
+            error={error("evidenceLink")}
+            className="sm:col-span-2"
+          >
+            <input
+              type="url"
+              inputMode="url"
+              placeholder="https://drive.google.com/…"
+              className="field"
+              data-testid={id("field-evidence-link")}
+              value={value.evidenceLink}
+              onChange={(e) => set("evidenceLink", e.target.value)}
+              {...wire("evidenceLink", true)}
+            />
+          </Field>
+        </>
+      ) : null}
     </div>
   );
 }
 
+/** Native autocomplete: type-ahead over what the sheet already uses, still free text. */
+function Options({ id, values }: { id: string; values: readonly string[] }) {
+  if (values.length === 0) return null;
+  return (
+    <datalist id={id}>
+      {values.map((value) => (
+        <option key={value} value={value} />
+      ))}
+    </datalist>
+  );
+}
+
 function Field({
+  htmlFor,
   label,
+  hint,
   error,
   className = "",
+  as = "label",
   children,
 }: {
+  htmlFor: string;
   label: string;
+  hint?: string;
   error?: string;
   className?: string;
+  /** `group` for the one field whose value is edited by two controls at once. */
+  as?: "label" | "group";
   children: React.ReactNode;
 }) {
+  const note = error ? (
+    <span
+      id={`${htmlFor}-note`}
+      className="mt-1 block text-[11.5px] text-late-ink"
+      role="alert"
+    >
+      {error}
+    </span>
+  ) : hint ? (
+    <span id={`${htmlFor}-note`} className="mt-1 block text-[11px] text-faint">
+      {hint}
+    </span>
+  ) : null;
+
+  if (as === "group") {
+    return (
+      <div className={`block ${className}`} role="group" aria-label={label}>
+        <span className="label">{label}</span>
+        {children}
+        {note}
+      </div>
+    );
+  }
+
   return (
-    <label className={`block ${className}`}>
-      <span className="label">{label}</span>
+    <div className={`block ${className}`}>
+      <label className="label" htmlFor={htmlFor}>
+        {label}
+      </label>
       {children}
-      {error ? (
-        <span className="mt-1 block text-[11.5px] text-late-ink" role="alert">
-          {error}
-        </span>
-      ) : null}
-    </label>
+      {note}
+    </div>
   );
 }

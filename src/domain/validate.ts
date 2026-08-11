@@ -1,5 +1,6 @@
+import { emptyContext, splitKpis, type CaseContext } from "./context";
 import { formatTrackerDate, parseTrackerDate } from "./dates";
-import { clampProgress } from "./rows";
+import { clampProgress, safeLink } from "./rows";
 import { STATUSES, type Status } from "./types";
 
 /** Field name → Indonesian message. Keys match the form control names. */
@@ -23,6 +24,7 @@ export interface StepInput {
   progress: number;
   actualDate: string;
   evidence: string;
+  evidenceLink: string;
 }
 
 export interface CaseInput {
@@ -30,6 +32,14 @@ export interface CaseInput {
   title: string;
   station: string;
   steps: StepInput[];
+  context: CaseContext;
+}
+
+export interface CaseMetaInput {
+  iapId: string;
+  title: string;
+  station: string;
+  context: CaseContext;
 }
 
 /** Step fields normalised for storage: dates back to `d Mmm yyyy`, text trimmed. */
@@ -39,8 +49,13 @@ export interface NormalisedStep extends StepInput {
   actualDate: string;
 }
 
+/**
+ * An omitted status means "not started" — the case builder's compact step form does
+ * not ask, because a step being planned has never been started.
+ */
 function asStatus(raw: unknown): Status | null {
   const text = String(raw ?? "").trim();
+  if (text === "") return "Belum Dimulai";
   return STATUSES.find((s) => s === text) ?? null;
 }
 
@@ -100,6 +115,15 @@ function validateStep(
       "Item Selesai wajib mencantumkan Tanggal Selesai Aktual.";
   }
 
+  // Rejected rather than silently blanked: a PIC who pasted a Drive path or typed a
+  // bare domain needs to be told, not to have their evidence quietly vanish on save.
+  const linkRaw = text(raw.evidenceLink);
+  const link = safeLink(linkRaw);
+  if (linkRaw && !link) {
+    errors[key("evidenceLink")] =
+      "Link Evidence harus URL lengkap yang diawali http:// atau https://.";
+  }
+
   if (Object.keys(errors).length > 0) return null;
 
   return {
@@ -112,6 +136,7 @@ function validateStep(
     progress: status === "Selesai" ? 100 : clampProgress(rawProgress!),
     actualDate: formatTrackerDate(actualIso),
     evidence: String(raw.evidence ?? "").trim(),
+    evidenceLink: link,
   };
 }
 
@@ -135,6 +160,30 @@ function validateCaseFields(
   if (!iapId) errors.iapId = "ID IAP wajib diisi.";
   if (!title) errors.title = "Judul IAP / Kasus wajib diisi.";
   return { iapId, title, station: text(raw.station) };
+}
+
+/**
+ * The context block. Every field is free text and every one of them is optional —
+ * an IAP raised in the app has no source document to quote, and forcing a
+ * placeholder in would be worse than leaving the section blank.
+ */
+export function normaliseContext(
+  raw: unknown,
+  iapId: string,
+): CaseContext {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const rawKpis = source.kpis;
+  return {
+    ...emptyContext(iapId),
+    incident: text(source.incident),
+    parties: text(source.parties),
+    purpose: text(source.purpose),
+    effectiveDate: text(source.effectiveDate),
+    rootCause: text(source.rootCause),
+    kpis: Array.isArray(rawKpis)
+      ? splitKpis(rawKpis.map((kpi) => String(kpi ?? "")).join("\n"))
+      : splitKpis(String(rawKpis ?? "")),
+  };
 }
 
 export function validateCaseInput(
@@ -162,16 +211,28 @@ export function validateCaseInput(
   });
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, value: { iapId, title, station, steps } };
+  return {
+    ok: true,
+    value: {
+      iapId,
+      title,
+      station,
+      steps,
+      context: normaliseContext(raw.context, iapId),
+    },
+  };
 }
 
 export function validateCaseMetaInput(
   raw: Record<string, unknown>,
-): Validated<{ iapId: string; title: string; station: string }> {
+): Validated<CaseMetaInput> {
   const errors: FieldErrors = {};
   const value = validateCaseFields(raw, errors);
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, value };
+  return {
+    ok: true,
+    value: { ...value, context: normaliseContext(raw.context, value.iapId) },
+  };
 }
 
 /** First message, for surfacing a single-line failure. */

@@ -17,6 +17,19 @@ export const COL = {
   actualDate: 12,
   overdue: 13,
   evidence: 14,
+  contextNote: 15,
+  evidenceLink: 16,
+} as const;
+
+/** Column positions in the `Konteks` tab, one row per case. */
+export const CTX = {
+  iapId: 0,
+  incident: 1,
+  parties: 2,
+  purpose: 3,
+  effectiveDate: 4,
+  rootCause: 5,
+  kpis: 6,
 } as const;
 
 export type SheetRow = string[];
@@ -33,8 +46,11 @@ export async function resetSheet(request: APIRequestContext): Promise<void> {
 /** Raw grid as stored, header row included. */
 export async function readSheet(
   request: APIRequestContext,
+  tab?: string,
 ): Promise<SheetRow[]> {
-  const response = await request.get("/api/test/snapshot");
+  const response = await request.get(
+    tab ? `/api/test/snapshot?tab=${encodeURIComponent(tab)}` : "/api/test/snapshot",
+  );
   expect(response.ok()).toBeTruthy();
   const body = (await response.json()) as { rows: SheetRow[] };
   return body.rows;
@@ -45,6 +61,24 @@ export async function readDataRows(
   request: APIRequestContext,
 ): Promise<SheetRow[]> {
   return (await readSheet(request)).slice(1);
+}
+
+/** The `Konteks` tab's data rows, keyed by `ID IAP`. */
+export async function readContextRows(
+  request: APIRequestContext,
+): Promise<Map<string, SheetRow>>;
+/** The raw grid instead, header row included. */
+export async function readContextRows(
+  request: APIRequestContext,
+  options: { header: true },
+): Promise<SheetRow[]>;
+export async function readContextRows(
+  request: APIRequestContext,
+  options?: { header: true },
+): Promise<Map<string, SheetRow> | SheetRow[]> {
+  const grid = await readSheet(request, "Konteks");
+  if (options?.header) return grid;
+  return new Map(grid.slice(1).map((row) => [row[CTX.iapId]!, row]));
 }
 
 export function findRow(
@@ -122,6 +156,35 @@ export async function revealAllItems(page: Page): Promise<void> {
 
 export async function saveModal(page: Page, testId: string): Promise<void> {
   await page.getByTestId(testId).click();
+}
+
+/** Open "+ Kasus IAP Baru" and fill page 1 of the wizard. */
+export async function startNewCase(
+  page: Page,
+  identity: { iapId: string; title?: string; station?: string },
+): Promise<void> {
+  await page.getByTestId("new-case").click();
+  await expect(page.getByTestId("case-modal")).toBeVisible();
+  await page.getByTestId("case-field-id").fill(identity.iapId);
+  if (identity.title !== undefined) {
+    await page.getByTestId("case-field-title").fill(identity.title);
+  }
+  if (identity.station !== undefined) {
+    await page.getByTestId("case-field-station").fill(identity.station);
+  }
+}
+
+/**
+ * Advance the create wizard to a given page (0 identity, 1 context, 2 steps).
+ * Clicks until it arrives rather than a fixed number of times, so it works from
+ * wherever the test already is.
+ */
+export async function wizardTo(page: Page, target: number): Promise<void> {
+  for (let guard = 0; guard <= target; guard++) {
+    if ((await page.getByTestId(`case-page-${target}`).count()) > 0) break;
+    await page.getByTestId("case-next").click();
+  }
+  await expect(page.getByTestId(`case-page-${target}`)).toBeVisible();
 }
 
 /** Wait for a modal to close, which is how the app signals a successful save. */

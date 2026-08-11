@@ -95,6 +95,10 @@ export function ActionTable({
       >
         <div>
           <table className="w-full table-fixed border-collapse text-[11.5px] [&_td]:break-words [&_td_.pill]:whitespace-normal">
+            <caption className="sr-only">
+              Seluruh item aksi, dikelompokkan per kasus IAP. Judul kolom dapat
+              diklik untuk mengurutkan.
+            </caption>
             <thead>
               <tr className="border-b border-line-strong bg-head">
                 {COLUMNS.map((column) => (
@@ -109,13 +113,15 @@ export function ActionTable({
                         : "none"
                     }
                     style={{ width: column.width }}
-                    className="px-2 py-1.5 text-left font-semibold text-idle-ink"
+                    className="p-0 text-left font-semibold text-idle-ink"
                   >
+                    {/* The button fills the header cell: the whole label is the
+                        target, and it clears the 24px minimum on its own. */}
                     <button
                       type="button"
                       onClick={() => onSort(column.key)}
                       data-testid={`sort-${column.key}`}
-                      className="flex cursor-pointer items-center gap-1 font-semibold hover:text-ink"
+                      className="flex w-full min-h-[32px] cursor-pointer items-center gap-1 px-2 py-1.5 text-left font-semibold hover:text-ink"
                     >
                       {column.label}
                       <SortMark
@@ -209,6 +215,7 @@ export function ActionTable({
                     </td>
                     <td className="px-2 py-1.5 text-[11.5px] leading-snug text-idle">
                       {row.evidence}
+                      <EvidenceLink item={row} />
                     </td>
                     <td className="px-2 py-1.5">
                       <div className="flex flex-wrap justify-end gap-1">
@@ -300,9 +307,10 @@ export function ActionTable({
                     <ProgressBar value={row.progress} />
                   </div>
 
-                  {row.evidence ? (
+                  {row.evidence || row.evidenceLink ? (
                     <p className="mt-2.5 border-t border-line-soft pt-2.5 text-[11.5px] leading-snug text-idle">
                       {row.evidence}
+                      <EvidenceLink item={row} prefix="card-" />
                     </p>
                   ) : null}
 
@@ -341,7 +349,7 @@ export function ActionTable({
           // reachable by keyboard and where IntersectionObserver never fires.
           <button
             type="button"
-            className="cursor-pointer underline"
+            className="min-h-[32px] cursor-pointer px-3 py-1.5 underline"
             onClick={() => setLimit((current) => current + PAGE)}
           >
             Muat {PAGE} item berikutnya ({visible.length} dari {rows.length})
@@ -351,6 +359,34 @@ export function ActionTable({
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * The evidence itself, next to the note describing it. `rowToItem` has already
+ * discarded anything that is not an http(s) URL, so this only ever renders a link it
+ * was given one — and `noreferrer` keeps the tracker's URL out of the target's logs,
+ * which matters when the rows name individual employees.
+ */
+function EvidenceLink({
+  item,
+  prefix = "",
+}: {
+  item: DerivedActionItem;
+  /** Both layouts are always in the DOM, so their test ids must not collide. */
+  prefix?: string;
+}) {
+  if (!item.evidenceLink) return null;
+  return (
+    <a
+      href={item.evidenceLink}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid={`${prefix}evidence-link-${item.iapId}-${item.stepNo}`}
+      className="mt-1 block font-semibold text-accent underline underline-offset-2"
+    >
+      Buka bukti ↗
+    </a>
   );
 }
 
@@ -366,7 +402,7 @@ function CardField({ label, value }: { label: string; value: string }) {
 function ProgressBar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-1.5">
-      <div className="h-[6px] w-[34px] shrink-0 overflow-hidden rounded-[4px] bg-[oklch(93%_0.004_250)]">
+      <div className="h-[6px] w-[34px] shrink-0 overflow-hidden rounded-[4px] bg-track">
         <div
           className="h-full rounded-[4px]"
           style={{ width: `${value}%`, background: progressColor(value) }}
@@ -410,7 +446,7 @@ function RowButton({
       type="button"
       onClick={onClick}
       data-testid={testId}
-      className={`cursor-pointer rounded-[5px] border border-line px-2 py-1 text-[11.5px] font-semibold whitespace-nowrap hover:bg-head ${
+      className={`min-h-[26px] cursor-pointer rounded-[5px] border border-line px-2 py-1 text-[11.5px] font-semibold whitespace-nowrap hover:bg-head ${
         danger ? "text-late-ink" : "text-ink-mid"
       }`}
     >

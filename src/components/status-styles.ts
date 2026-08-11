@@ -26,12 +26,19 @@ export const OVERDUE_PILL: Record<OverdueFlag, string> = {
   "-": "text-faint",
 };
 
-/** Chart and progress-bar fills, as raw colours for SVG and inline styles. */
+/**
+ * Chart and progress-bar fills, as raw colours for SVG and inline styles. Every one
+ * of them carries white numerals inside a bar segment, so each clears 4.5:1 against
+ * white — the neutral included.
+ */
 export const STATUS_COLOR: Record<Status, string> = {
   Selesai: "oklch(42% 0.13 145)",
   "Sedang Berjalan": "oklch(48% 0.14 70)",
-  "Belum Dimulai": "oklch(72% 0.02 250)",
+  "Belum Dimulai": "oklch(55% 0.02 250)",
 };
+
+/** Unfilled remainder of any progress track. Mirrors `--color-track`. */
+export const TRACK_COLOR = "oklch(93% 0.004 250)";
 
 export const LATE_COLOR = "oklch(50% 0.17 25)";
 export const PLAN_COLOR = "oklch(45% 0.1 160)";

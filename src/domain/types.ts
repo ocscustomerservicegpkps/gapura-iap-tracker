@@ -42,6 +42,18 @@ export interface ActionItem {
   storedOverdue: string;
   /** O */
   evidence: string;
+  /**
+   * P — the live sheet's `Konteks` column. The app does not read or show it: a case's
+   * context is per-case and lives in the `Konteks` tab, not repeated on every row.
+   * Carried through writes verbatim so a whole-row save cannot wipe it.
+   */
+  contextNote: string;
+  /**
+   * Q — URL of the evidence itself (Drive folder, photo, signed attendance list).
+   * Blank, or an `http`/`https` URL; nothing else is ever stored, because this value
+   * becomes an `href`.
+   */
+  evidenceLink: string;
 }
 
 /** An {@link ActionItem} with everything the UI needs computed against a fixed "today". */

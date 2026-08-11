@@ -7,6 +7,8 @@
 
 export const TRACKER_TAB = process.env.TRACKER_SHEET_NAME ?? "Tracker";
 export const DASHBOARD_TAB = process.env.DASHBOARD_SHEET_NAME ?? "Dashboard";
+/** One row per case: the source IAP document's header block, root cause and KPIs. */
+export const CONTEXT_TAB = process.env.CONTEXT_SHEET_NAME ?? "Konteks";
 
 /** The live spreadsheet. Guarded against in the test-sheet seeding script. */
 export const PRODUCTION_SPREADSHEET_ID =

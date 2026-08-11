@@ -16,10 +16,22 @@ Indonesian throughout, light theme only, no authentication.
 - **Real dates.** `Tanggal Target` is stored as Indonesian text (`14 Okt 2026`) and
   parsed on read, so the table sorts chronologically and can answer "what falls due in
   the next 7 days".
-- **Full CRUD** on action items and on whole IAP cases, through modals.
-- **Case context** — incident, parties, root cause and Parameter Keberhasilan (KPI) —
-  lifted from the nine source IAP documents into a static file in this repo.
+- **Full CRUD** on action items, on whole IAP cases, and on each case's context.
+- **Case context is data, not code.** The six standard fields of an IAP document —
+  Kasus/Insiden, Pihak Terkait, Tujuan Dokumen, Tanggal Efektif, Latar Belakang &
+  Analisis Akar Masalah, Parameter Keberhasilan (KPI) — live one row per case in a
+  `Konteks` tab and are written from the app. A case created in the app carries its own
+  context, and empty fields are not rendered at all.
+- **Evidence has a link.** Column P of `Tracker` holds the URL of the proof itself,
+  shown next to its `Bukti / Catatan` note.
 - **Charts and a phone layout**, so a PIC can update an item from the ramp.
+- **The case prints as the IAP document it came from.** Each row of the case summary
+  offers `DOCX` and `PDF`: `/api/export/{ID}?format=docx` writes a Word file laid out
+  like the station's own IAP document — header block, root cause, action matrix, KPIs,
+  closing, signature — and `/api/export/{ID}` serves the same document as a print page
+  that opens the browser's print dialog. Neither costs a dependency: the `.docx` is
+  five XML parts in a zip written with `node:zlib`, and the PDF is the browser's own
+  "Simpan sebagai PDF".
 
 ## Running it
 
@@ -29,7 +41,8 @@ npm run dev
 ```
 
 With no credentials configured the app binds an **in-memory copy of the sheet**, seeded
-from the 66-row fixture in `src/fixtures/tracker-fixture.json`. Nothing touches Google.
+from the 66-row fixture in `src/fixtures/tracker-fixture.json` and the nine-case context
+fixture in `src/fixtures/context-fixture.json`. Nothing touches Google.
 
 To run against the real spreadsheet, copy `.env.example` to `.env.local` and fill in the
 service account credentials.
@@ -40,14 +53,14 @@ service account credentials.
 npm test
 ```
 
-Builds the app and runs the Playwright suite (52 tests) against it. Three servers are
+Builds the app and runs the Playwright suite (73 tests) against it. Three servers are
 started automatically:
 
-| Project        | Clock pinned to             | Covers                                  |
-| -------------- | --------------------------- | --------------------------------------- |
-| `desktop`      | `2026-08-10T05:00:00Z`      | read, filters, sorting, CRUD, overdue   |
-| `mobile`       | same                        | stacked cards, phone editing            |
-| `clock-later`  | `2026-09-15T05:00:00Z`      | stale column N, self-heal on save       |
+| Project        | Clock pinned to             | Covers                                          |
+| -------------- | --------------------------- | ----------------------------------------------- |
+| `desktop`      | `2026-08-10T05:00:00Z`      | read, filters, sorting, CRUD, context, evidence, export |
+| `mobile`       | same                        | stacked cards, phone editing                    |
+| `clock-later`  | `2026-09-15T05:00:00Z`      | stale column N, self-heal on save               |
 
 All three run under `TZ=America/Los_Angeles` — the production spreadsheet's own
 timezone — so every run proves the date logic states Asia/Jakarta explicitly instead of
@@ -82,18 +95,56 @@ blanks — but it does not prove the `googleapis` calls themselves.
 ## Layout
 
 ```
-src/domain/      pure: dates, row mapping, overdue, aggregation, filtering, validation
+src/domain/      pure: dates, row mapping, overdue, aggregation, filtering, validation,
+                 and the case-context record
 src/sheets/      the four-operation transport, plus its Google and in-memory bindings
-src/data/        repository (CRUD keyed on (ID IAP, No Langkah)) and static case context
+src/data/        two repositories — action items keyed on (ID IAP, No Langkah), and
+                 case context keyed on ID IAP
 src/app/         page (Server Component read) and actions.ts (Server Actions write)
 src/components/  the dashboard UI
 scripts/         one-off maintenance against a live spreadsheet
 tests/e2e/       the whole test suite
 ```
 
-The `Tracker` tab's schema is **not** changed by anything here: columns A–O stay exactly
-as they are, cell types included (A, E and L numeric; the rest text). Values are written
-with `RAW` so `14 Okt 2026` is never reinterpreted as a date by the sheet's US locale.
+The `Tracker` tab keeps columns A–O exactly as they are — nothing is reordered or
+retyped (A, E and L numeric; the rest text). One column was **appended**:
+
+| P                 |
+| ----------------- |
+| `Link Evidence` — URL of the evidence itself, alongside the `Bukti / Catatan` note in O |
+
+It renders as a link in the table, the phone card and the item form. Because the value
+becomes an `href`, anything that is not plainly an `http`/`https` URL is rejected on
+save **and** discarded on read — someone typing `javascript:…` straight into the
+spreadsheet cell cannot get it into the DOM. Blank is always allowed.
+
+Values are written with `RAW` so `14 Okt 2026` is never reinterpreted as a date by the
+sheet's US locale.
+
+### The `Konteks` tab
+
+One row per case, columns A–G, all text — the six standard fields of an IAP document
+and nothing else:
+
+| A      | B             | C             | D              | E               | F                                      | G                            |
+| ------ | ------------- | ------------- | -------------- | --------------- | -------------------------------------- | ---------------------------- |
+| ID IAP | Kasus/Insiden | Pihak Terkait | Tujuan Dokumen | Tanggal Efektif | Latar Belakang & Analisis Akar Masalah | Parameter Keberhasilan (KPI) |
+
+Column G holds one KPI per line in a single cell. Writes locate their row by `ID IAP`,
+never by a remembered index, and a context emptied of every field deletes its row rather
+than leaving a husk.
+
+Six fields is the standard and the whole of it. What one document carries and another
+does not — a warning-letter reference, a closing commitment, the filename it came from
+— belongs inside the narrative fields. A schema that grows a column per document
+variant is no longer a standard, and `Dokumen Sumber` in particular was the reason
+every case used to end with a filename it had no reason to show.
+
+**The application never creates spreadsheet tabs.** Against a live sheet that has no
+`Konteks` tab, the dashboard reads as "no context anywhere" and keeps working; saving a
+context returns a message naming the tab and the seven headers to add by hand. The same
+goes for `Tracker!P1` — add the `Link Evidence` header yourself. Growing the file's
+structure stays the operator's decision.
 
 Every write locates its target row by re-reading the sheet and matching
 `(ID IAP, No Langkah)` — never a cached row index — so a save cannot land on the wrong

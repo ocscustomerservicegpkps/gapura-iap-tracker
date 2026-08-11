@@ -8,6 +8,8 @@ import {
   openDashboard,
   readDataRows,
   resetSheet,
+  startNewCase,
+  wizardTo,
 } from "./helpers";
 
 test.beforeEach(async ({ page, request }) => {
@@ -70,16 +72,12 @@ test.describe("membuat kasus IAP baru", () => {
     page,
     request,
   }) => {
-    await page.getByTestId("new-case").click();
-    await expect(page.getByTestId("case-modal")).toBeVisible();
-
-    await page.getByTestId("case-field-id").fill("QZ7788");
-    await page
-      .getByTestId("case-field-title")
-      .fill("QZ7788 - Keterlambatan Pushback (DPS)");
-    await page
-      .getByTestId("case-field-station")
-      .fill("Indonesia AirAsia (QZ) - Stasiun DPS");
+    await startNewCase(page, {
+      iapId: "QZ7788",
+      title: "QZ7788 - Keterlambatan Pushback (DPS)",
+      station: "Indonesia AirAsia (QZ) - Stasiun DPS",
+    });
+    await wizardTo(page, 2);
 
     await page.getByTestId("case-add-step").click();
     await page.getByTestId("case-add-step").click();
@@ -120,7 +118,8 @@ test.describe("membuat kasus IAP baru", () => {
   });
 
   test("langkah dapat dihapus kembali saat menyusun kasus", async ({ page }) => {
-    await page.getByTestId("new-case").click();
+    await startNewCase(page, { iapId: "QZ0001", title: "Uji" });
+    await wizardTo(page, 2);
     await page.getByTestId("case-add-step").click();
     await expect(page.getByTestId("case-step-1")).toBeVisible();
 
@@ -130,30 +129,93 @@ test.describe("membuat kasus IAP baru", () => {
     await expect(page.getByTestId("case-step-0")).toBeVisible();
   });
 
-  test("ID IAP yang sudah ada ditolak", async ({ page, request }) => {
-    await page.getByTestId("new-case").click();
-    await page.getByTestId("case-field-id").fill("GA254");
-    await page.getByTestId("case-field-title").fill("Duplikat");
+  test("ID IAP yang sudah ada ditolak dan kembali ke halaman identitas", async ({
+    page,
+    request,
+  }) => {
+    await startNewCase(page, { iapId: "GA254", title: "Duplikat" });
+    await wizardTo(page, 2);
     await page.getByTestId("steps.0.field-step").fill("Langkah");
     await page.getByTestId("steps.0.field-action").fill("Tindakan");
     await page.getByTestId("case-save").click();
 
+    // The failure belongs to page 1, so the wizard goes back there to show it.
+    await expect(page.getByTestId("case-page-0")).toBeVisible();
     await expect(page.getByTestId("case-error-id")).toContainText(
       'ID IAP "GA254" sudah digunakan oleh kasus lain.',
     );
     expect(await readDataRows(request)).toHaveLength(66);
   });
 
-  test("kasus tanpa judul ditolak", async ({ page, request }) => {
-    await page.getByTestId("new-case").click();
-    await page.getByTestId("case-field-id").fill("XX111");
-    await page.getByTestId("steps.0.field-step").fill("Langkah");
-    await page.getByTestId("steps.0.field-action").fill("Tindakan");
-    await page.getByTestId("case-save").click();
+  test("kasus tanpa judul tidak dapat melewati halaman identitas", async ({
+    page,
+    request,
+  }) => {
+    await startNewCase(page, { iapId: "XX111" });
+    await page.getByTestId("case-next").click();
 
+    await expect(page.getByTestId("case-page-0")).toBeVisible();
     await expect(page.getByTestId("case-modal")).toContainText(
       "Judul IAP / Kasus wajib diisi.",
     );
     expect(await readDataRows(request)).toHaveLength(66);
+  });
+});
+
+test.describe("stepper pembuatan kasus", () => {
+  test("tiga langkah, maju dan mundur, tanpa melompati identitas", async ({
+    page,
+  }) => {
+    await page.getByTestId("new-case").click();
+
+    const stepper = page.getByTestId("case-stepper");
+    await expect(stepper).toContainText("Identitas Kasus");
+    await expect(stepper).toContainText("Konteks Kasus");
+    await expect(stepper).toContainText("Langkah Perbaikan");
+
+    // Nothing ahead is reachable until it has been walked.
+    await expect(page.getByTestId("case-stepper-1")).toBeDisabled();
+    await expect(page.getByTestId("case-stepper-2")).toBeDisabled();
+    await expect(page.getByTestId("case-page-0")).toBeVisible();
+    await expect(page.getByTestId("case-save")).toHaveCount(0);
+
+    await page.getByTestId("case-field-id").fill("QZ4242");
+    await page.getByTestId("case-field-title").fill("QZ4242 - Uji Stepper");
+
+    await page.getByTestId("case-next").click();
+    await expect(page.getByTestId("case-page-1")).toBeVisible();
+    await expect(page.getByTestId("context-field-incident")).toBeVisible();
+
+    await page.getByTestId("case-next").click();
+    await expect(page.getByTestId("case-page-2")).toBeVisible();
+    await expect(page.getByTestId("steps.0.field-step")).toBeVisible();
+    // Save only exists on the last page.
+    await expect(page.getByTestId("case-save")).toBeVisible();
+    await expect(page.getByTestId("case-next")).toHaveCount(0);
+
+    await page.getByTestId("case-back").click();
+    await expect(page.getByTestId("case-page-1")).toBeVisible();
+
+    // Ground already covered is clickable.
+    await page.getByTestId("case-stepper-0").click();
+    await expect(page.getByTestId("case-page-0")).toBeVisible();
+    await expect(page.getByTestId("case-field-id")).toHaveValue("QZ4242");
+  });
+
+  test("isian tiap langkah bertahan saat berpindah halaman", async ({ page }) => {
+    await startNewCase(page, { iapId: "QZ5151", title: "QZ5151 - Uji Simpan" });
+    await wizardTo(page, 1);
+    await page.getByTestId("context-field-parties").fill("Indonesia AirAsia (QZ)");
+    await wizardTo(page, 2);
+    await page.getByTestId("steps.0.field-step").fill("Investigasi Awal");
+
+    await page.getByTestId("case-stepper-1").click();
+    await expect(page.getByTestId("context-field-parties")).toHaveValue(
+      "Indonesia AirAsia (QZ)",
+    );
+    await page.getByTestId("case-stepper-2").click();
+    await expect(page.getByTestId("steps.0.field-step")).toHaveValue(
+      "Investigasi Awal",
+    );
   });
 });
