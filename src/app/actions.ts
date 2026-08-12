@@ -3,7 +3,6 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import {
   CONTEXT_TAG,
-  deleteContext,
   saveContext,
 } from "@/data/case-context";
 import {
@@ -80,9 +79,8 @@ export async function deleteItemAction(key: ItemKey): Promise<MutationResult> {
 }
 
 /**
- * A case is its tracker rows plus its context row. The tracker write goes first:
- * if it fails there is nothing to undo, and a context row for a case that does not
- * exist would be the harder mess to explain.
+ * A case is stored entirely in Tracker. Action rows are created first, then their
+ * context columns R–W are filled, so a failed row creation cannot leave orphan data.
  */
 export async function createCaseAction(
   raw: Record<string, unknown>,
@@ -112,10 +110,5 @@ export async function updateCaseAction(
 }
 
 export async function deleteCaseAction(iapId: string): Promise<MutationResult> {
-  return run(async () => {
-    const deleted = await deleteCase(iapId);
-    if (!deleted.ok) return deleted;
-    await deleteContext(iapId);
-    return deleted;
-  });
+  return run(() => deleteCase(iapId));
 }

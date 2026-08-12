@@ -39,7 +39,7 @@ export function UsageNotes() {
           pihak terkait, referensi surat peringatan, analisis akar masalah, Parameter
           Keberhasilan (KPI), dan komitmen manajemen. Bertuliskan <b>+ Konteks</b>{" "}
           bila kasus itu belum punya — semuanya dapat diisi dan diubah dari dalam
-          aplikasi, tersimpan di tab <b>Konteks</b> pada spreadsheet yang sama.
+          aplikasi, tersimpan di kolom <b>R–W</b> pada tab <b>Tracker</b>.
           Bagian yang kosong tidak ditampilkan.
         </li>
       </ol>

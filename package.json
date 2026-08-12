@@ -11,6 +11,7 @@
     "test:only": "playwright test",
     "test:ui": "playwright test --ui",
     "fix-dashboard-tab": "tsx scripts/fix-dashboard-formulas.ts",
+    "migrate-context-to-tracker": "tsx scripts/migrate-context-to-tracker.ts",
     "seed-test-sheet": "tsx scripts/seed-test-sheet.ts"
   },
   "dependencies": {

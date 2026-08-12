@@ -14,7 +14,7 @@ export const TRACKER_TAG = "tracker";
 
 /** Row 1 is the header and is never touched. */
 const FIRST_DATA_ROW = 2;
-const DATA_RANGE = `${TRACKER_TAB}!A${FIRST_DATA_ROW}:Q`;
+const DATA_RANGE = `${TRACKER_TAB}!A${FIRST_DATA_ROW}:W`;
 
 /** Cache window. One Sheets read serves every visitor inside it. */
 const REVALIDATE_SECONDS = 60;
@@ -28,6 +28,8 @@ const failure = (field: string, message: string): MutationResult => ({
 
 interface PositionedItem {
   item: ActionItem;
+  /** Structured case context in R–W, carried into newly-added action rows. */
+  contextCells: string[];
   /** 1-based sheet row. The only place row numbers exist; never cached. */
   rowNumber: number;
 }
@@ -43,6 +45,7 @@ async function loadPositioned(): Promise<PositionedItem[]> {
   return rows
     .map((cells, index) => ({
       item: rowToItem(cells),
+      contextCells: cells.slice(17, 23).map((cell) => String(cell ?? "")),
       rowNumber: index + FIRST_DATA_ROW,
     }))
     .filter((row) => row.item.iapId !== "");
@@ -162,7 +165,10 @@ export async function createStep(
     return failure("iapId", `Kasus ${iapId} tidak ditemukan.`);
   }
 
-  const template = existing[0]!.item;
+  const templateRow = existing.find((row) =>
+    row.contextCells.some((cell) => cell !== ""),
+  ) ?? existing[0]!;
+  const template = templateRow.item;
   const nextStepNo = Math.max(...existing.map((row) => row.item.stepNo)) + 1;
   const item = applyStep(
     {
@@ -176,7 +182,9 @@ export async function createStep(
   );
 
   const transport = getTransport();
-  await transport.appendRows(TRACKER_TAB, [itemToRow(item)]);
+  await transport.appendRows(TRACKER_TAB, [
+    [...itemToRow(item), ...templateRow.contextCells],
+  ]);
   await renumber(await loadPositioned());
   return { ok: true };
 }

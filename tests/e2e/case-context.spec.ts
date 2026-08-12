@@ -15,7 +15,7 @@ test.beforeEach(async ({ page, request }) => {
 });
 
 test.describe("konteks kasus", () => {
-  test("tab Konteks menyimpan tepat enam bidang standar", async ({ request }) => {
+  test("Tracker R–W menyimpan tepat enam bidang standar", async ({ request }) => {
     const header = (await readContextRows(request, { header: true }))[0]!;
     expect(header).toEqual([
       "ID IAP",
@@ -28,7 +28,7 @@ test.describe("konteks kasus", () => {
     ]);
   });
 
-  test("konteks dokumen ditampilkan dari tab Konteks, bukan dari kode", async ({
+  test("konteks dokumen ditampilkan dari kolom Tracker, bukan dari kode", async ({
     page,
   }) => {
     await page.getByTestId("case-context-HU702").click();
@@ -139,7 +139,7 @@ test.describe("konteks kasus", () => {
     await expect(page.getByTestId("case-context-edit")).toHaveText("Isi Konteks");
   });
 
-  test("menghapus kasus juga menghapus barisnya di tab Konteks", async ({
+  test("menghapus kasus juga menghapus konteksnya dari Tracker", async ({
     page,
     request,
   }) => {

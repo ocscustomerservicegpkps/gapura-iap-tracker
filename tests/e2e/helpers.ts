@@ -19,9 +19,15 @@ export const COL = {
   evidence: 14,
   contextNote: 15,
   evidenceLink: 16,
+  contextIncident: 17,
+  contextParties: 18,
+  contextPurpose: 19,
+  contextEffectiveDate: 20,
+  contextRootCause: 21,
+  contextKpis: 22,
 } as const;
 
-/** Column positions in the `Konteks` tab, one row per case. */
+/** Positions in the normalized context row returned by readContextRows. */
 export const CTX = {
   iapId: 0,
   incident: 1,
@@ -63,7 +69,7 @@ export async function readDataRows(
   return (await readSheet(request)).slice(1);
 }
 
-/** The `Konteks` tab's data rows, keyed by `ID IAP`. */
+/** Tracker context columns R–W, normalized to one row per case and keyed by ID. */
 export async function readContextRows(
   request: APIRequestContext,
 ): Promise<Map<string, SheetRow>>;
@@ -76,9 +82,23 @@ export async function readContextRows(
   request: APIRequestContext,
   options?: { header: true },
 ): Promise<Map<string, SheetRow> | SheetRow[]> {
-  const grid = await readSheet(request, "Konteks");
-  if (options?.header) return grid;
-  return new Map(grid.slice(1).map((row) => [row[CTX.iapId]!, row]));
+  const tracker = await readSheet(request);
+  const normalized = tracker.map((row) => [
+    row[COL.iapId] ?? "",
+    row[COL.contextIncident] ?? "",
+    row[COL.contextParties] ?? "",
+    row[COL.contextPurpose] ?? "",
+    row[COL.contextEffectiveDate] ?? "",
+    row[COL.contextRootCause] ?? "",
+    row[COL.contextKpis] ?? "",
+  ]);
+  if (options?.header) return normalized.slice(0, 1);
+  return new Map(
+    normalized
+      .slice(1)
+      .filter((row) => row.slice(1).some((cell) => cell !== ""))
+      .map((row) => [row[CTX.iapId]!, row]),
+  );
 }
 
 export function findRow(

@@ -3,20 +3,29 @@ import "server-only";
 import contextFixture from "@/fixtures/context-fixture.json";
 import fixture from "@/fixtures/tracker-fixture.json";
 import type { CellValue } from "@/domain/rows";
+import { TRACKER_COLUMN_COUNT } from "@/domain/rows";
+import { CONTEXT_HEADER } from "@/domain/context";
 import { CONTEXT_TAB, googleCredentials, TRACKER_TAB } from "./config";
 import { GoogleSheetsTransport } from "./google-transport";
 import { MemorySheetsTransport } from "./memory-transport";
 import type { SheetsTransport } from "./transport";
 
-/** The 66-row snapshot the offline transport starts from, header row included. */
-export const TRACKER_FIXTURE = fixture as CellValue[][];
-
 /** The nine documented cases' context, header row included. */
 export const CONTEXT_FIXTURE = contextFixture as CellValue[][];
 
+/** Tracker fixture enriched with context columns R–W, matching production storage. */
+export const TRACKER_FIXTURE: CellValue[][] = (fixture as CellValue[][]).map(
+  (source, index) => {
+    const row = [...source];
+    while (row.length < TRACKER_COLUMN_COUNT) row.push("");
+    if (index === 0) return [...row, ...CONTEXT_HEADER.slice(1)];
+    const context = CONTEXT_FIXTURE.find((entry) => entry[0] === row[1]);
+    return [...row, ...(context?.slice(1) ?? ["", "", "", "", "", ""])];
+  },
+);
+
 const OFFLINE_SHEET = {
   [TRACKER_TAB]: TRACKER_FIXTURE,
-  [CONTEXT_TAB]: CONTEXT_FIXTURE,
 };
 
 type TransportKind = "google" | "memory";

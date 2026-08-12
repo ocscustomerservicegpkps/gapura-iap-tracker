@@ -5,7 +5,8 @@ export const OVERDUE_FLAGS = ["TERLAMBAT", "Sesuai Rencana", "-"] as const;
 export type OverdueFlag = (typeof OVERDUE_FLAGS)[number];
 
 /**
- * One row of the `Tracker` tab, columns A–O, as typed values.
+ * One action row of the `Tracker` tab, columns A–Q, as typed values. Context fields
+ * live in R–W and are handled at case level by the context repository.
  *
  * `storedOverdue` is column N as it currently sits in the sheet. It is kept only
  * so the app can tell whether the sheet needs healing; every display and count
@@ -43,9 +44,8 @@ export interface ActionItem {
   /** O */
   evidence: string;
   /**
-   * P — the live sheet's `Konteks` column. The app does not read or show it: a case's
-   * context is per-case and lives in the `Konteks` tab, not repeated on every row.
-   * Carried through writes verbatim so a whole-row save cannot wipe it.
+   * P — the live sheet's legacy `Konteks` note column. Carried through action-item
+   * writes verbatim; structured case context is stored in R–W.
    */
   contextNote: string;
   /**

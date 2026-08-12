@@ -36,7 +36,7 @@ export default function Error({
             Kredensial service account belum diatur, kedaluwarsa, atau kehilangan
             akses ke spreadsheet.
           </li>
-          <li>Nama tab (Tracker / Konteks) berubah di spreadsheet.</li>
+          <li>Nama tab Tracker berubah atau kolom R–W tidak tersedia di spreadsheet.</li>
         </ul>
 
         <div className="mt-6 flex flex-wrap gap-2">

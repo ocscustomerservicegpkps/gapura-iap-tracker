@@ -25,7 +25,7 @@ export interface CaseContext {
   kpis: string[];
 }
 
-/** Columns A–G of the `Konteks` tab. */
+/** ID plus the six context fields stored in Tracker columns R–W. */
 export const CONTEXT_COLUMN_COUNT = 7;
 
 export const CONTEXT_HEADER: readonly string[] = [

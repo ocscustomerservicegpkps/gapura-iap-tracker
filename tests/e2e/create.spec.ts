@@ -61,6 +61,9 @@ test.describe("menambah item aksi", () => {
     const sibling = findRow(rows, "IP207", 1);
     expect(created[COL.title]).toBe(sibling[COL.title]);
     expect(created[COL.station]).toBe(sibling[COL.station]);
+    for (let column = COL.contextIncident; column <= COL.contextKpis; column += 1) {
+      expect(created[column]).toBe(sibling[column]);
+    }
 
     expect(numbering(rows)).toEqual(contiguousFromOne(67));
     await expect(page.getByTestId("kpi-total")).toHaveText("67");

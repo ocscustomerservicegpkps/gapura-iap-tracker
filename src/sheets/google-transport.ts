@@ -71,7 +71,7 @@ export class GoogleSheetsTransport implements SheetsTransport {
     if (values.length === 0) return;
     await this.api.spreadsheets.values.append({
       spreadsheetId: this.spreadsheetId,
-      range: `${tab}!A:Q`,
+      range: `${tab}!A:W`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: values.map((row) => [...row]) },

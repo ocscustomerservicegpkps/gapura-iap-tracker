@@ -378,7 +378,7 @@ export function CaseModal({
       subtitle={
         isNew
           ? `Langkah ${current + 1} dari ${WIZARD.length} — ${WIZARD[current]!.title}: ${WIZARD[current]!.hint}`
-          : `Judul dan stasiun diterapkan ke ${existing.rowCount} baris kasus ini. Konteks disimpan satu baris di tab Konteks.`
+          : `Judul, stasiun, dan konteks diterapkan ke ${existing.rowCount} baris kasus ini di tab Tracker.`
       }
       onClose={onClose}
       dirty={dirty}

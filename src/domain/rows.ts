@@ -2,7 +2,8 @@ import { STATUSES, type ActionItem, type Status } from "./types";
 
 /**
  * Columns A–Q, matching the live sheet's own header row. Nothing here may reorder
- * A–O; P (`Konteks`) and Q (`Link Evidence`) already existed there.
+ * A–O; P (legacy `Konteks`) and Q (`Link Evidence`) already existed there. Structured
+ * case context in R–W is deliberately handled separately so an item save cannot wipe it.
  */
 export const TRACKER_COLUMN_COUNT = 17;
 
