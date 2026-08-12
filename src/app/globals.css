@@ -54,6 +54,28 @@
   --color-mid-bar: oklch(60% 0.13 160);
 
   --radius-card: 10px;
+
+  /* The tracker table's page turn. Opacity only: the animated element is a
+     `tbody`, and table row groups are no place for a transform. */
+  --animate-page-in: page-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Motion here is feedback, never content, so removing it costs nothing. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 ::selection {

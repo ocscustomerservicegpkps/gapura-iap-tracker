@@ -10,11 +10,13 @@ import {
   ANY,
   EMPTY_FILTERS,
   filterItems,
+  hasActiveFilters,
   sortItems,
   type FilterCriteria,
   type SortDirection,
   type SortKey,
 } from "@/domain/filter";
+import { DEFAULT_PAGE_SIZE, type PageSize } from "@/domain/pagination";
 import type { CaseSummary, DerivedActionItem } from "@/domain/types";
 import { firstError } from "@/domain/validate";
 import { ActionTable } from "./ActionTable";
@@ -65,6 +67,11 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
+  // Paging lives here rather than in the table, because changing what the table
+  // shows — a filter, a sort — is what has to send it back to page one. Saving a
+  // row does not, so an edit on page five stays on page five.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE);
 
   const totals = useMemo(() => summariseTotals(items), [items]);
   const byCase = useMemo(() => summariseByCase(items), [items]);
@@ -95,6 +102,18 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
       setSortKey(key);
       setSortDirection("asc");
     }
+    // The order changed under it, so page five no longer means anything.
+    setPage(1);
+  };
+
+  const applyFilters = (next: FilterCriteria) => {
+    setCriteria(next);
+    setPage(1);
+  };
+
+  const changePageSize = (next: PageSize) => {
+    setPageSize(next);
+    setPage(1);
   };
 
   const confirmDelete = () => {
@@ -206,7 +225,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
 
         <FilterBar
           criteria={criteria}
-          onChange={setCriteria}
+          onChange={applyFilters}
           iapIds={ids}
           overdueCount={totals.overdue}
           dueSoonCount={totals.dueSoon}
@@ -214,23 +233,19 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
 
         <ActionTable
           rows={rows}
+          total={totals.total}
           sortKey={sortKey}
           sortDirection={sortDirection}
           onSort={toggleSort}
           onEdit={(item) => setDialog({ kind: "edit-item", item })}
           onDelete={(item) => setDialog({ kind: "delete-item", item })}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={changePageSize}
+          filtered={hasActiveFilters(criteria)}
+          onClearFilters={() => applyFilters(EMPTY_FILTERS)}
         />
-
-        {/* Filtering changes this line and nothing else visible above the fold, so
-            it announces itself rather than waiting to be re-read. */}
-        <p
-          className="mt-2 text-[12px] text-faint"
-          role="status"
-          aria-live="polite"
-          data-testid="result-count"
-        >
-          Menampilkan {rows.length} dari {totals.total} item aksi.
-        </p>
 
         <UsageNotes />
       </main>

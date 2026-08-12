@@ -128,30 +128,23 @@ export async function editItem(
   await expect(page.getByTestId("item-modal")).toBeVisible();
 }
 
-/** Render a paginated desktop row without relying on scroll side effects. */
+/** Render one desktop row whichever page it would otherwise fall on. */
 export async function revealItem(
   page: Page,
   iapId: string,
   stepNo: number,
 ): Promise<void> {
-  const row = page.getByTestId(`row-${iapId}-${stepNo}`);
-  for (let attempt = 0; attempt < 10 && (await row.count()) === 0; attempt++) {
-    const loadMore = page.getByTestId("load-more").getByRole("button");
-    if ((await loadMore.count()) === 0) break;
-    await loadMore.evaluate((button: HTMLButtonElement) => button.click());
-    await page.waitForTimeout(50);
-  }
-  await expect(row).toHaveCount(1);
+  await revealAllItems(page);
+  await expect(page.getByTestId(`row-${iapId}-${stepNo}`)).toHaveCount(1);
 }
 
-/** Expand the infinite-scroll table when an assertion needs the full dataset. */
+/**
+ * Drop the tracker's page limit when an assertion needs the whole filtered set.
+ * "All" is one of the offered row counts, so this drives the same control a reader
+ * would rather than a test-only escape hatch.
+ */
 export async function revealAllItems(page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const loadMore = page.getByTestId("load-more").getByRole("button");
-    if ((await loadMore.count()) === 0) return;
-    await loadMore.evaluate((button: HTMLButtonElement) => button.click());
-    await page.waitForTimeout(50);
-  }
+  await page.getByTestId("page-size").selectOption("all");
 }
 
 export async function saveModal(page: Page, testId: string): Promise<void> {
