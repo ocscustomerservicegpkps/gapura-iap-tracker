@@ -72,14 +72,23 @@ export function rowToItem(cells: readonly unknown[]): ActionItem {
  * type `javascript:…` into a cell; this is the boundary that stops it reaching the DOM.
  */
 export function safeLink(raw: string): string {
-  const value = raw.trim();
-  if (value === "") return "";
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" ? value : "";
-  } catch {
-    return "";
-  }
+  return safeLinks(raw).join("\n");
+}
+
+/** Column Q stores one evidence URL per line; invalid lines never reach an href. */
+export function safeLinks(raw: string): string[] {
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((value) => {
+      try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch {
+        return false;
+      }
+    });
 }
 
 /** Columns A, E and L stay numeric so the sheet's own cell types are preserved. */

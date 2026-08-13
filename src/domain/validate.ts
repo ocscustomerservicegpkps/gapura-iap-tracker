@@ -119,9 +119,14 @@ function validateStep(
   // bare domain needs to be told, not to have their evidence quietly vanish on save.
   const linkRaw = text(raw.evidenceLink);
   const link = safeLink(linkRaw);
-  if (linkRaw && !link) {
+  const submittedLinkCount = linkRaw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean).length;
+  const validLinkCount = link ? link.split("\n").length : 0;
+  if (submittedLinkCount !== validLinkCount) {
     errors[key("evidenceLink")] =
-      "Link Evidence harus URL lengkap yang diawali http:// atau https://.";
+      "Setiap Link Evidence harus berupa URL lengkap yang diawali http:// atau https://.";
   }
 
   if (Object.keys(errors).length > 0) return null;

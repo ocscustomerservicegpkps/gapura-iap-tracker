@@ -8,6 +8,7 @@ import {
 import {
   createCase,
   createStep,
+  appendEvidenceLinks,
   deleteCase,
   deleteStep,
   updateCaseMeta,
@@ -111,4 +112,17 @@ export async function updateCaseAction(
 
 export async function deleteCaseAction(iapId: string): Promise<MutationResult> {
   return run(() => deleteCase(iapId));
+}
+
+export async function appendCaseEvidenceAction(
+  iapId: string,
+  stepNumbers: readonly number[],
+  evidenceLink: string,
+): Promise<MutationResult> {
+  const cleanIapId = String(iapId).trim();
+  const cleanSteps = [...new Set(stepNumbers)]
+    .filter((step) => Number.isInteger(step) && step > 0)
+    .map((stepNo) => ({ iapId: cleanIapId, stepNo }));
+  if (!cleanIapId) return { ok: false, errors: { iapId: "ID IAP wajib diisi." } };
+  return run(() => appendEvidenceLinks(cleanSteps, evidenceLink));
 }

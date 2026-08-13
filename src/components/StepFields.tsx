@@ -395,12 +395,10 @@ function EvidenceAttachmentField({
       </fieldset>
 
       {mode === "link" ? (
-        <input
+        <textarea
           id={inputId}
-          type="url"
-          inputMode="url"
           placeholder="https://drive.google.com/…"
-          className="field"
+          className="field min-h-[72px]"
           data-testid={id("field-evidence-link")}
           value={link}
           onChange={(event) => onLinkChange(event.target.value)}
@@ -433,7 +431,7 @@ function EvidenceAttachmentField({
 
       <span id={`${inputId}-note`} className="mt-1 block text-[11px] text-faint">
         {mode === "link"
-          ? "Masukkan URL lengkap yang diawali http:// atau https://."
+          ? "Masukkan satu URL lengkap per baris. Tambahkan link baru di bawah link sebelumnya."
           : isDeferred
             ? "File maksimal 10 MB. File akan diunggah setelah kasus berhasil dibuat."
             : "File maksimal 10 MB. File disimpan ke Google Drive dan link-nya otomatis ditulis ke kolom Q."}

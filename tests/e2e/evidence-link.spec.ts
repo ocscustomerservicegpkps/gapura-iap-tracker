@@ -81,7 +81,7 @@ test.describe("link evidence", () => {
     await page.getByTestId("item-save").click();
 
     await expect(page.getByTestId("item-modal")).toContainText(
-      "Link Evidence harus URL lengkap yang diawali http:// atau https://.",
+      "Setiap Link Evidence harus berupa URL lengkap yang diawali http:// atau https://.",
     );
 
     const row = findRow(await readDataRows(request), "HU702", 1);
@@ -125,6 +125,13 @@ test.describe("link evidence", () => {
     });
 
     await editItem(page, "HU702", 1);
+    await page
+      .getByTestId("field-evidence-link")
+      .fill("https://example.com/bukti-sebelumnya");
+    await page.getByTestId("item-save").click();
+    await expectModalClosed(page, "item-modal");
+
+    await editItem(page, "HU702", 1);
     await page.getByTestId("evidence-mode-photo").check();
     await page.getByTestId("field-evidence-file").setInputFiles({
       name: "briefing.png",
@@ -139,7 +146,7 @@ test.describe("link evidence", () => {
 
     const row = findRow(await readDataRows(request), "HU702", 1);
     expect(row[COL.evidenceLink]).toBe(
-      "https://drive.google.com/file/d/foto-evidence/view",
+      "https://example.com/bukti-sebelumnya\nhttps://drive.google.com/file/d/foto-evidence/view",
     );
   });
 
@@ -149,6 +156,47 @@ test.describe("link evidence", () => {
     await expect(page.getByTestId("field-evidence-file")).toHaveAttribute(
       "accept",
       /\.pdf,\.doc,\.docx/,
+    );
+  });
+
+  test("Ubah kasus menambahkan evidence ke langkah terpilih tanpa menimpa link lama", async ({
+    page,
+    request,
+  }) => {
+    await editItem(page, "HU702", 1);
+    await page
+      .getByTestId("field-evidence-link")
+      .fill("https://example.com/evidence-lama");
+    await page.getByTestId("item-save").click();
+    await expectModalClosed(page, "item-modal");
+
+    await page.getByTestId("case-edit-HU702").click();
+    await expect(page.getByTestId("case-evidence-panel")).toBeVisible();
+    await page.getByTestId("case-evidence-target-selected").check();
+    await page.getByTestId("case-evidence-step-1").check();
+    await page
+      .getByTestId("case-evidence-link")
+      .fill("https://example.com/evidence-baru");
+    await page.getByTestId("case-evidence-upload").click();
+    await expect(page.getByTestId("case-evidence-success")).toContainText(
+      "ditambahkan ke 1 langkah",
+    );
+
+    const rows = await readDataRows(request);
+    expect(findRow(rows, "HU702", 1)[COL.evidenceLink]).toBe(
+      "https://example.com/evidence-lama\nhttps://example.com/evidence-baru",
+    );
+    expect(findRow(rows, "HU702", 2)[COL.evidenceLink] ?? "").toBe("");
+
+    await page.getByRole("button", { name: "Batal" }).click();
+    await revealItem(page, "HU702", 1);
+    await expect(page.getByTestId("evidence-link-HU702-1")).toHaveAttribute(
+      "href",
+      "https://example.com/evidence-lama",
+    );
+    await expect(page.getByTestId("evidence-link-HU702-1-2")).toHaveAttribute(
+      "href",
+      "https://example.com/evidence-baru",
     );
   });
 });

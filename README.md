@@ -24,7 +24,8 @@ Indonesian throughout, light theme only, no authentication.
   context, and empty fields are not rendered at all.
 - **Evidence can be linked or uploaded.** Column Q of `Tracker` holds the URL of the
   proof itself. Photos, PDFs, DOCs and DOCX files can be uploaded to the configured
-  Drive folder; the returned share link is written to Q and shown in both layouts.
+  Drive folder; returned share links are appended one URL per line in Q and all are
+  shown in both layouts. The case editor can target every step or selected steps.
 - **Charts and a phone layout**, so a PIC can update an item from the ramp.
 - **The case prints as the IAP document it came from.** Each row of the case summary
   offers `DOCX` and `PDF`: `/api/export/{ID}?format=docx` writes a Word file laid out

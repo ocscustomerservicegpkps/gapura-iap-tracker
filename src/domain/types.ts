@@ -49,9 +49,8 @@ export interface ActionItem {
    */
   contextNote: string;
   /**
-   * Q — URL of the evidence itself (Drive folder, photo, signed attendance list).
-   * Blank, or an `http`/`https` URL; nothing else is ever stored, because this value
-   * becomes an `href`.
+   * Q — evidence URLs (Drive folder, photo, signed attendance list), one per line.
+   * Every non-blank line must be `http`/`https`, because each becomes an `href`.
    */
   evidenceLink: string;
 }

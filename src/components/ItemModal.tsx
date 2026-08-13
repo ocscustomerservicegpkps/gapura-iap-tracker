@@ -157,8 +157,11 @@ export function ItemModal({
                 iapId,
                 stepNo: item.stepNo,
                 onUploaded: (url) => {
-                  setForm((current) => ({ ...current, evidenceLink: url }));
-                  opened.current = { ...opened.current, evidenceLink: url };
+                  const combined = form.evidenceLink
+                    ? `${form.evidenceLink}\n${url}`
+                    : url;
+                  setForm((current) => ({ ...current, evidenceLink: combined }));
+                  opened.current = { ...opened.current, evidenceLink: combined };
                   onEvidenceStored();
                 },
               }

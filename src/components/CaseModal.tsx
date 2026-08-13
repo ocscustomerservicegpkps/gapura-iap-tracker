@@ -9,6 +9,8 @@ import {
   type CaseContext,
 } from "@/domain/context";
 import type { FieldErrors } from "@/domain/validate";
+import type { DerivedActionItem } from "@/domain/types";
+import { CaseEvidencePanel } from "./CaseEvidencePanel";
 import { Modal } from "./Modal";
 import {
   EMPTY_STEP,
@@ -67,6 +69,8 @@ interface CaseModalProps {
   suggestions?: Suggestions;
   onClose: () => void;
   onSaved: () => void;
+  caseSteps?: readonly DerivedActionItem[];
+  onEvidenceStored?: () => void;
 }
 
 export function CaseModal({
@@ -76,6 +80,8 @@ export function CaseModal({
   suggestions = NO_SUGGESTIONS,
   onClose,
   onSaved,
+  caseSteps = [],
+  onEvidenceStored = () => {},
 }: CaseModalProps) {
   const isNew = existing === null;
   const [iapId, setIapId] = useState(existing?.iapId ?? "");
@@ -576,6 +582,13 @@ export function CaseModal({
             Langkah-langkah kasus ini diubah satu per satu dari tabel tracker, atau
             ditambah lewat tombol <b>+ Item</b> pada ringkasan kasus.
           </p>
+          <Section title="Upload Evidence" open testId="case-evidence-section">
+            <CaseEvidencePanel
+              iapId={existing.iapId}
+              steps={caseSteps}
+              onStored={onEvidenceStored}
+            />
+          </Section>
         </>
       )}
     </Modal>

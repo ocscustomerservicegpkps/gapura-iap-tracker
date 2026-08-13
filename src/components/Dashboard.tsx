@@ -278,6 +278,12 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
           suggestions={suggestions}
           onClose={close}
           onSaved={afterSave}
+          caseSteps={
+            dialog.kind === "edit-case"
+              ? items.filter((item) => item.iapId === dialog.summary.iapId)
+              : []
+          }
+          onEvidenceStored={() => router.refresh()}
         />
       ) : null}
 

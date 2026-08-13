@@ -1,7 +1,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import {
   readItems,
-  updateEvidenceLink,
+  appendEvidenceLink,
   TRACKER_TAG,
 } from "@/data/tracker-repository";
 import { todayInJakarta } from "@/domain/dates";
@@ -76,7 +76,7 @@ export async function POST(
       station: item.station,
       date: item.targetDate || todayInJakarta(),
     });
-    const saved = await updateEvidenceLink(key, uploaded.webViewLink);
+    const saved = await appendEvidenceLink(key, uploaded.webViewLink);
     if (!saved.ok) {
       try {
         await deleteEvidenceFile(uploaded.fileId);

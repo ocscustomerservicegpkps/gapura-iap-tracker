@@ -155,28 +155,38 @@ export async function updateStep(
 }
 
 /** Store an uploaded Drive file's share link without rewriting any other cell. */
-export async function updateEvidenceLink(
-  key: ItemKey,
+export async function appendEvidenceLinks(
+  keys: readonly ItemKey[],
   rawLink: string,
 ): Promise<MutationResult> {
+  if (keys.length === 0) return failure("steps", "Pilih minimal satu langkah.");
   const evidenceLink = safeLink(rawLink);
-  if (!evidenceLink) {
-    return failure("evidenceLink", "Google Drive tidak mengembalikan tautan yang valid.");
+  if (!evidenceLink || evidenceLink.includes("\n")) {
+    return failure("evidenceLink", "Link evidence baru harus satu URL http/https yang valid.");
   }
 
   const rows = await loadPositioned();
-  const target = find(rows, key);
-  if (!target) {
-    return failure("form", `Item ${key.iapId} langkah ${key.stepNo} tidak ditemukan.`);
-  }
-
-  await getTransport().writeRanges([
-    {
+  const updates: RangeUpdate[] = [];
+  for (const key of keys) {
+    const target = find(rows, key);
+    if (!target) {
+      return failure("form", `Item ${key.iapId} langkah ${key.stepNo} tidak ditemukan.`);
+    }
+    const existing = safeLink(target.item.evidenceLink);
+    updates.push({
       range: rowRange(target.rowNumber, "Q", "Q"),
-      values: [[evidenceLink]],
-    },
-  ]);
+      values: [[existing ? `${existing}\n${evidenceLink}` : evidenceLink]],
+    });
+  }
+  await getTransport().writeRanges(updates);
   return { ok: true };
+}
+
+export async function appendEvidenceLink(
+  key: ItemKey,
+  rawLink: string,
+): Promise<MutationResult> {
+  return appendEvidenceLinks([key], rawLink);
 }
 
 /** Add a step to an existing case. The step number is assigned as max+1. */

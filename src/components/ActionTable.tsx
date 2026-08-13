@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SortDirection, SortKey } from "@/domain/filter";
 import type { DerivedActionItem } from "@/domain/types";
+import { safeLinks } from "@/domain/rows";
 import {
   OVERDUE_LABEL,
   OVERDUE_PILL,
@@ -378,17 +379,27 @@ function EvidenceLink({
   /** Both layouts are always in the DOM, so their test ids must not collide. */
   prefix?: string;
 }) {
-  if (!item.evidenceLink) return null;
+  const links = safeLinks(item.evidenceLink);
+  if (links.length === 0) return null;
   return (
-    <a
-      href={item.evidenceLink}
-      target="_blank"
-      rel="noopener noreferrer"
-      data-testid={`${prefix}evidence-link-${item.iapId}-${item.stepNo}`}
-      className="mt-1 block font-semibold text-accent underline underline-offset-2"
-    >
-      Buka bukti ↗
-    </a>
+    <span className="mt-1 block">
+      {links.map((link, index) => (
+        <a
+          key={`${link}-${index}`}
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid={
+            index === 0
+              ? `${prefix}evidence-link-${item.iapId}-${item.stepNo}`
+              : `${prefix}evidence-link-${item.iapId}-${item.stepNo}-${index + 1}`
+          }
+          className="block font-semibold text-accent underline underline-offset-2"
+        >
+          Buka bukti {links.length > 1 ? index + 1 : ""} ↗
+        </a>
+      ))}
+    </span>
   );
 }
 
