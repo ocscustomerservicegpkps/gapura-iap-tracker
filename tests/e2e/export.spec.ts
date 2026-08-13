@@ -26,9 +26,11 @@ test.describe("ekspor dokumen IAP", () => {
     const xml = file.toString("utf8");
     expect(xml).toContain("word/document.xml");
     expect(xml).toContain("IMPROVEMENT ACTION PLAN (IAP)");
-    // Header block from the Konteks tab, matrix row from the Tracker tab.
+    // Header context and matrix rows both originate from the Tracker tab.
     expect(xml).toContain("Hainan Airlines (HU)");
     expect(xml).toContain("Monitoring, Audit &amp; Review Berkelanjutan");
+    expect(xml).toContain("Status");
+    expect(xml).toContain("Sedang Berjalan");
   });
 
   test("halaman cetak memuat keempat bagian dokumen", async ({ request }) => {
@@ -39,6 +41,7 @@ test.describe("ekspor dokumen IAP", () => {
 
     expect(html).toContain("I. LATAR BELAKANG");
     expect(html).toContain("II. MATRIKS RENCANA PERBAIKAN");
+    expect(html).toContain("<th>Status</th>");
     expect(html).toContain("III. PARAMETER KEBERHASILAN");
     expect(html).toContain("IV. PENUTUP &amp; KOMITMEN MANAJEMEN");
     // The page prints itself, so "PDF" is one click and the browser's own dialog.
@@ -52,7 +55,7 @@ test.describe("ekspor dokumen IAP", () => {
     expect(await response.text()).toContain("tidak ditemukan");
   });
 
-  test("setiap baris ringkasan menawarkan unduhan PDF dan DOCX", async ({
+  test("ringkasan memakai tautan langsung tanpa menu bahasa", async ({
     page,
   }) => {
     await openDashboard(page);
@@ -64,6 +67,27 @@ test.describe("ekspor dokumen IAP", () => {
     await expect(page.getByTestId("case-docx-HU702")).toHaveAttribute(
       "href",
       "/api/export/HU702?format=docx",
+    );
+    await expect(page.getByTestId("case-pdf-id-HU702")).toHaveCount(0);
+    await expect(page.getByTestId("case-pdf-en-HU702")).toHaveCount(0);
+  });
+
+  test("setiap item aksi menawarkan unduhan PDF dan DOCX kasusnya", async ({
+    page,
+  }) => {
+    await openDashboard(page);
+
+    await expect(page.getByTestId("item-pdf-HU702-1")).toHaveAttribute(
+      "href",
+      "/api/export/HU702",
+    );
+    await expect(page.getByTestId("item-docx-HU702-1")).toHaveAttribute(
+      "href",
+      "/api/export/HU702?format=docx",
+    );
+    await expect(page.getByTestId("item-pdf-GA254-1")).toHaveAttribute(
+      "href",
+      "/api/export/GA254",
     );
   });
 });

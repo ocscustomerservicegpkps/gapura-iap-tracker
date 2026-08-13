@@ -31,6 +31,7 @@ export interface MatrixRow {
   /** `action`, split on newlines so a multi-case detail stays multi-line in Word. */
   details: readonly string[];
   timeline: string;
+  status: string;
   pic: string;
 }
 
@@ -48,6 +49,7 @@ export const MATRIX_HEADINGS = [
   "Langkah Perbaikan (Sesuai Komitmen)",
   "Rincian Detail Tindakan Konkret per Kasus (Action Items)",
   "Timeline",
+  "Status",
   "PIC",
 ] as const;
 
@@ -94,6 +96,7 @@ export function buildIapDocument(
       step: row.step,
       details: lines(row.action),
       timeline: row.timeline,
+      status: row.status,
       pic: row.pic,
     })),
     kpis: context?.kpis ?? [],

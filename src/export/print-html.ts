@@ -23,14 +23,14 @@ export function renderPrintHtml(doc: IapDocument): string {
         .join("")}</table>`
     : "";
 
-  const matrix = `<table class="matrix"><thead><tr>${MATRIX_HEADINGS.map(
+  const matrix = `<table class="matrix"><colgroup><col class="no"><col class="step"><col class="details"><col class="timeline"><col class="status"><col class="pic"></colgroup><thead><tr>${MATRIX_HEADINGS.map(
     (label) => `<th>${escapeHtml(label)}</th>`,
   ).join("")}</tr></thead><tbody>${doc.matrix
     .map(
       (row) =>
         `<tr><td class="c">${row.no}</td><td><b>${escapeHtml(row.step)}</b></td>` +
         `<td>${row.details.map((detail) => `<p>${escapeHtml(detail)}</p>`).join("")}</td>` +
-        `<td class="c">${escapeHtml(row.timeline)}</td><td class="c">${escapeHtml(row.pic)}</td></tr>`,
+        `<td class="c">${escapeHtml(row.timeline)}</td><td class="c">${escapeHtml(row.status)}</td><td class="c">${escapeHtml(row.pic)}</td></tr>`,
     )
     .join("")}</tbody></table>`;
 
@@ -51,6 +51,12 @@ export function renderPrintHtml(doc: IapDocument): string {
   th, td { border: 1px solid #BFBFBF; padding: 4pt 6pt; vertical-align: middle; text-align: left; }
   .meta th { width: 25%; background: #EAF7EE; font-weight: bold; }
   .matrix { font-size: 9.5pt; }
+  .matrix col.no { width: 5%; }
+  .matrix col.step { width: 17%; }
+  .matrix col.details { width: 35%; }
+  .matrix col.timeline { width: 12%; }
+  .matrix col.status { width: 11%; }
+  .matrix col.pic { width: 20%; }
   .matrix thead th { background: #0B5B31; color: #fff; text-align: center; }
   .matrix td p { margin: 0 0 3pt; text-align: left; }
   .matrix td p:last-child { margin-bottom: 0; }

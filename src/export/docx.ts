@@ -101,7 +101,7 @@ function headerTable(doc: IapDocument): string {
 function matrixTable(doc: IapDocument): string {
   // Twips across the reference's text width. The step column is wider than the
   // reference's, which was sized for that document's short step names.
-  const grid = [600, 1850, 4100, 1371, 1975];
+  const grid = [500, 1600, 3500, 1100, 1000, 1700];
   const widths = pctWidths(grid);
 
   const head = tableRow(
@@ -133,7 +133,8 @@ function matrixTable(doc: IapDocument): string {
         widths[2]!,
       ),
       cell([para(row.timeline, { size: 19, align: "center" })], widths[3]!),
-      cell([para(row.pic, { size: 19, align: "center" })], widths[4]!),
+      cell([para(row.status, { size: 18, align: "center" })], widths[4]!),
+      cell([para(row.pic, { size: 19, align: "center" })], widths[5]!),
     ]),
   );
 

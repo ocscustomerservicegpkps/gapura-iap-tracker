@@ -219,6 +219,7 @@ export function ActionTable({
                     </td>
                     <td className="px-2 py-1.5">
                       <div className="flex flex-wrap justify-end gap-1">
+                        <ItemDownloadLinks item={row} />
                         <RowButton
                           onClick={() => onEdit(row)}
                           testId={`edit-${row.iapId}-${row.stepNo}`}
@@ -314,7 +315,8 @@ export function ActionTable({
                     </p>
                   ) : null}
 
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <ItemDownloadLinks item={row} prefix="card-" />
                     <button
                       type="button"
                       className="btn flex-1"
@@ -398,6 +400,47 @@ function CardField({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+/**
+ * Each action item belongs to one IAP case, so its export buttons generate the
+ * complete case document. Both layouts stay mounted, hence the distinct prefixes.
+ */
+function ItemDownloadLinks({
+  item,
+  prefix = "",
+}: {
+  item: DerivedActionItem;
+  prefix?: string;
+}) {
+  const href = `/api/export/${encodeURIComponent(item.iapId)}`;
+  const testSuffix = `${item.iapId}-${item.stepNo}`;
+
+  return (
+    <>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        data-testid={`${prefix}item-pdf-${testSuffix}`}
+        title={`Cetak / simpan PDF dokumen IAP ${item.iapId}`}
+        className={ROW_LINK_CLASS}
+      >
+        PDF
+      </a>
+      <a
+        href={`${href}?format=docx`}
+        data-testid={`${prefix}item-docx-${testSuffix}`}
+        title={`Unduh dokumen Word IAP ${item.iapId}`}
+        className={ROW_LINK_CLASS}
+      >
+        DOCX
+      </a>
+    </>
+  );
+}
+
+const ROW_LINK_CLASS =
+  "flex min-h-[26px] cursor-pointer items-center rounded-[5px] border border-line px-2 py-1 text-[11.5px] font-semibold whitespace-nowrap text-ink-mid hover:bg-head";
 
 function ProgressBar({ value }: { value: number }) {
   return (
