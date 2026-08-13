@@ -253,6 +253,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
           suggestions={suggestions}
           onClose={close}
           onSaved={afterSave}
+          onEvidenceStored={() => router.refresh()}
         />
       ) : null}
 

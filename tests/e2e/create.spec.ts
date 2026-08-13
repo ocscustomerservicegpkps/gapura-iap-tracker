@@ -71,6 +71,62 @@ test.describe("menambah item aksi", () => {
 });
 
 test.describe("membuat kasus IAP baru", () => {
+  test("foto evidence dipilih saat membuat kasus lalu diunggah setelah row tersedia", async ({
+    page,
+    request,
+  }) => {
+    const uploads: string[] = [];
+    await page.route("**/api/evidence/NEW-UPLOAD/1", async (route) => {
+      uploads.push(route.request().url());
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          url: "https://drive.google.com/file/d/new-upload-evidence/view",
+          name: "foto-ramp.png",
+        }),
+      });
+    });
+
+    await startNewCase(page, {
+      iapId: "NEW-UPLOAD",
+      title: "NEW-UPLOAD - Uji Evidence",
+      station: "Stasiun CGK",
+    });
+    await wizardTo(page, 2);
+    await page.getByTestId("steps.0.field-step").fill("Investigasi");
+    await page.getByTestId("steps.0.field-action").fill("Dokumentasi lapangan.");
+    await page.getByTestId("steps.0.field-target-date").fill("2026-08-20");
+
+    await page.getByTestId("steps.0.evidence-mode-photo").check();
+    await page.getByTestId("steps.0.field-evidence-file").setInputFiles({
+      name: "foto-ramp.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("fake-png"),
+    });
+    await expect(page.getByTestId("steps.0.evidence-uploaded")).toContainText(
+      "siap diunggah saat kasus disimpan",
+    );
+
+    // Changing evidence type discards the old selection; a photo must not be
+    // uploaded while the UI says the active choice is a document.
+    await page.getByTestId("steps.0.evidence-mode-document").check();
+    await expect(page.getByTestId("steps.0.evidence-uploaded")).toHaveCount(0);
+    await page.getByTestId("steps.0.evidence-mode-photo").check();
+    await page.getByTestId("steps.0.field-evidence-file").setInputFiles({
+      name: "foto-ramp.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("fake-png"),
+    });
+
+    await page.getByTestId("case-save").click();
+    await expectModalClosed(page, "case-modal");
+    expect(uploads).toHaveLength(1);
+    expect(findRow(await readDataRows(request), "NEW-UPLOAD", 1)[COL.step]).toBe(
+      "Investigasi",
+    );
+  });
+
   test("pembangun langkah menulis seluruh baris kasus sekaligus", async ({
     page,
     request,
@@ -87,7 +143,11 @@ test.describe("membuat kasus IAP baru", () => {
     await expect(page.getByTestId("case-step-2")).toBeVisible();
 
     const steps = [
-      { step: "Investigasi Awal", action: "Menyusun kronologi kejadian." },
+      {
+        step: "Investigasi Awal",
+        action: "Menyusun kronologi kejadian.",
+        evidenceLink: "https://drive.google.com/file/d/qz7788-langkah-1/view",
+      },
       { step: "Pembinaan Petugas", action: "Briefing tim ramp handling." },
       { step: "Penguatan SOP", action: "Revisi SOP pushback." },
     ];
@@ -98,6 +158,11 @@ test.describe("membuat kasus IAP baru", () => {
       await page
         .getByTestId(`steps.${index}.field-target-date`)
         .fill("2026-11-30");
+      if (draft.evidenceLink) {
+        await page
+          .getByTestId(`steps.${index}.field-evidence-link`)
+          .fill(draft.evidenceLink);
+      }
     }
 
     await page.getByTestId("case-save").click();
@@ -113,6 +178,7 @@ test.describe("membuat kasus IAP baru", () => {
       expect(row[COL.title]).toBe("QZ7788 - Keterlambatan Pushback (DPS)");
       expect(row[COL.station]).toBe("Indonesia AirAsia (QZ) - Stasiun DPS");
       expect(row[COL.targetDate]).toBe("30 Nov 2026");
+      expect(row[COL.evidenceLink] ?? "").toBe(draft.evidenceLink ?? "");
     }
 
     expect(numbering(rows)).toEqual(contiguousFromOne(69));

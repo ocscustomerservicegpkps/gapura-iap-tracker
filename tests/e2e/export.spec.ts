@@ -72,22 +72,43 @@ test.describe("ekspor dokumen IAP", () => {
     await expect(page.getByTestId("case-pdf-en-HU702")).toHaveCount(0);
   });
 
-  test("setiap item aksi menawarkan unduhan PDF dan DOCX kasusnya", async ({
+  test("ekspor item hanya memuat langkah yang dipilih", async ({
+    request,
+  }) => {
+    const response = await request.get(
+      "/api/export/HU702?format=docx&step=3",
+    );
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-disposition"]).toContain(
+      'filename="IAP-HU702-Langkah-3.docx"',
+    );
+    const xml = (await response.body()).toString("utf8");
+    expect(xml).toContain("Pembinaan &amp; Penegakan Disiplin");
+    expect(xml).not.toContain("Respons Formal &amp; Koordinasi Awal");
+    expect(xml).not.toContain("Monitoring, Audit &amp; Review Berkelanjutan");
+  });
+
+  test("setiap item aksi menawarkan unduhan PDF dan DOCX langkahnya", async ({
     page,
   }) => {
     await openDashboard(page);
 
     await expect(page.getByTestId("item-pdf-HU702-1")).toHaveAttribute(
       "href",
-      "/api/export/HU702",
+      "/api/export/HU702?step=1",
     );
     await expect(page.getByTestId("item-docx-HU702-1")).toHaveAttribute(
       "href",
-      "/api/export/HU702?format=docx",
+      "/api/export/HU702?format=docx&step=1",
     );
     await expect(page.getByTestId("item-pdf-GA254-1")).toHaveAttribute(
       "href",
-      "/api/export/GA254",
+      "/api/export/GA254?step=1",
     );
+  });
+
+  test("nomor langkah ekspor yang tidak valid ditolak", async ({ request }) => {
+    expect((await request.get("/api/export/HU702?step=abc")).status()).toBe(400);
+    expect((await request.get("/api/export/HU702?step=99")).status()).toBe(404);
   });
 });

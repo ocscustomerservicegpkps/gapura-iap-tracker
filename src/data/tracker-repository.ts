@@ -3,7 +3,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { todayInJakarta } from "@/domain/dates";
 import { withHealedOverdue } from "@/domain/overdue";
-import { itemToRow, rowToItem, type CellValue } from "@/domain/rows";
+import { itemToRow, rowToItem, safeLink, type CellValue } from "@/domain/rows";
 import type { ActionItem, ItemKey } from "@/domain/types";
 import type { CaseInput, FieldErrors, StepInput } from "@/domain/validate";
 import { getTransport } from "@/sheets";
@@ -150,6 +150,31 @@ export async function updateStep(
   const updated = applyStep(target.item, input, todayInJakarta());
   await getTransport().writeRanges([
     { range: rowRange(target.rowNumber), values: [itemToRow(updated)] },
+  ]);
+  return { ok: true };
+}
+
+/** Store an uploaded Drive file's share link without rewriting any other cell. */
+export async function updateEvidenceLink(
+  key: ItemKey,
+  rawLink: string,
+): Promise<MutationResult> {
+  const evidenceLink = safeLink(rawLink);
+  if (!evidenceLink) {
+    return failure("evidenceLink", "Google Drive tidak mengembalikan tautan yang valid.");
+  }
+
+  const rows = await loadPositioned();
+  const target = find(rows, key);
+  if (!target) {
+    return failure("form", `Item ${key.iapId} langkah ${key.stepNo} tidak ditemukan.`);
+  }
+
+  await getTransport().writeRanges([
+    {
+      range: rowRange(target.rowNumber, "Q", "Q"),
+      values: [[evidenceLink]],
+    },
   ]);
   return { ok: true };
 }

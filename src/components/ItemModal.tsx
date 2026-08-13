@@ -28,6 +28,7 @@ interface ItemModalProps {
   suggestions?: Suggestions;
   onClose: () => void;
   onSaved: () => void;
+  onEvidenceStored: () => void;
 }
 
 function toFormState(item: DerivedActionItem): StepFormState {
@@ -54,6 +55,7 @@ export function ItemModal({
   suggestions = NO_SUGGESTIONS,
   onClose,
   onSaved,
+  onEvidenceStored,
 }: ItemModalProps) {
   const [form, setForm] = useState<StepFormState>(
     item ? toFormState(item) : EMPTY_STEP,
@@ -149,6 +151,19 @@ export function ItemModal({
         onChange={setForm}
         errors={errors}
         suggestions={suggestions}
+        evidenceUpload={
+          item
+            ? {
+                iapId,
+                stepNo: item.stepNo,
+                onUploaded: (url) => {
+                  setForm((current) => ({ ...current, evidenceLink: url }));
+                  opened.current = { ...opened.current, evidenceLink: url };
+                  onEvidenceStored();
+                },
+              }
+            : undefined
+        }
       />
 
       <p className="mt-3 text-[11px] text-faint">

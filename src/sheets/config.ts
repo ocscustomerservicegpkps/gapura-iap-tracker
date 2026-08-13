@@ -37,3 +37,8 @@ export function googleCredentials(): GoogleCredentials {
     privateKey: requireEnv("GOOGLE_PRIVATE_KEY"),
   };
 }
+
+/** Folder shared with the service account where uploaded action evidence is stored. */
+export function evidenceDriveFolderId(): string {
+  return requireEnv("GOOGLE_DRIVE_EVIDENCE_FOLDER_ID");
+}

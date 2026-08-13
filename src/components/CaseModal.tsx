@@ -15,6 +15,7 @@ import {
   NO_SUGGESTIONS,
   StepFields,
   type StepFormState,
+  type DeferredEvidenceSelection,
   type Suggestions,
 } from "./StepFields";
 import { runAction } from "./run-action";
@@ -82,6 +83,10 @@ export function CaseModal({
   const [station, setStation] = useState(existing?.station ?? "");
   const [ctx, setCtx] = useState<ContextFormState>(() => toContextForm(context));
   const [steps, setSteps] = useState<StepFormState[]>([{ ...EMPTY_STEP }]);
+  const [pendingEvidence, setPendingEvidence] = useState<
+    Array<DeferredEvidenceSelection | null>
+  >([null]);
+  const [caseCreated, setCaseCreated] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, startTransition] = useTransition();
   const [current, setCurrent] = useState(0);
@@ -99,7 +104,8 @@ export function CaseModal({
     JSON.stringify({ iapId, title, station, ctx, steps }),
   );
   const dirty =
-    JSON.stringify({ iapId, title, station, ctx, steps }) !== opened.current;
+    JSON.stringify({ iapId, title, station, ctx, steps }) !== opened.current ||
+    pendingEvidence.some(Boolean);
 
   useErrorFocus(errors);
 
@@ -115,6 +121,13 @@ export function CaseModal({
   /** Reordering matters: step numbers are assigned from position on save. */
   const moveStep = (index: number, delta: number) => {
     setSteps((cur) => {
+      const target = index + delta;
+      if (target < 0 || target >= cur.length) return cur;
+      const next = [...cur];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      return next;
+    });
+    setPendingEvidence((cur) => {
       const target = index + delta;
       if (target < 0 || target >= cur.length) return cur;
       const next = [...cur];
@@ -147,18 +160,28 @@ export function CaseModal({
   const submit = () => {
     setErrors({});
     startTransition(async () => {
-      const result = await runAction(() =>
-        isNew
-          ? createCaseAction({ iapId, title, station, steps, context: ctx })
-          : updateCaseAction({
-              iapId: existing.iapId,
-              title,
-              station,
-              context: ctx,
-            }),
-      );
+      const result = caseCreated
+        ? { ok: true as const }
+        : await runAction(() =>
+            isNew
+              ? createCaseAction({ iapId, title, station, steps, context: ctx })
+              : updateCaseAction({
+                  iapId: existing.iapId,
+                  title,
+                  station,
+                  context: ctx,
+                }),
+          );
 
       if (result.ok) {
+        if (isNew) {
+          setCaseCreated(true);
+          const uploadError = await uploadPendingEvidence();
+          if (uploadError) {
+            setErrors({ form: uploadError });
+            return;
+          }
+        }
         onSaved();
         return;
       }
@@ -168,6 +191,38 @@ export function CaseModal({
         if (target !== null) setCurrent(target);
       }
     });
+  };
+
+  const uploadPendingEvidence = async (): Promise<string | null> => {
+    for (const [index, selection] of pendingEvidence.entries()) {
+      if (!selection) continue;
+      try {
+        const body = new FormData();
+        body.set("kind", selection.kind);
+        body.set("file", selection.file);
+        const response = await fetch(
+          `/api/evidence/${encodeURIComponent(iapId.trim())}/${index + 1}`,
+          { method: "POST", body },
+        );
+        const result = (await response.json()) as { url?: string; error?: string };
+        if (!response.ok || !result.url) {
+          throw new Error(result.error || "Upload evidence gagal.");
+        }
+        setSteps((current) =>
+          current.map((step, stepIndex) =>
+            stepIndex === index ? { ...step, evidenceLink: result.url! } : step,
+          ),
+        );
+        setPendingEvidence((current) =>
+          current.map((entry, stepIndex) => (stepIndex === index ? null : entry)),
+        );
+      } catch (cause) {
+        return `Kasus sudah tersimpan, tetapi evidence langkah ${index + 1} gagal diunggah: ${
+          cause instanceof Error ? cause.message : String(cause)
+        }. Klik Simpan untuk mencoba ulang file yang belum berhasil.`;
+      }
+    }
+    return null;
   };
 
   const filled = filledCount(ctx);
@@ -302,7 +357,10 @@ export function CaseModal({
         <button
           type="button"
           className="btn"
-          onClick={() => setSteps((cur) => [...cur, { ...EMPTY_STEP }])}
+          onClick={() => {
+            setSteps((cur) => [...cur, { ...EMPTY_STEP }]);
+            setPendingEvidence((cur) => [...cur, null]);
+          }}
           data-testid="case-add-step"
         >
           + Tambah Langkah
@@ -342,9 +400,12 @@ export function CaseModal({
                 <button
                   type="button"
                   className="cursor-pointer text-[11.5px] font-semibold text-late-ink hover:underline"
-                  onClick={() =>
-                    setSteps((cur) => cur.filter((_, i) => i !== index))
-                  }
+                  onClick={() => {
+                    setSteps((cur) => cur.filter((_, i) => i !== index));
+                    setPendingEvidence((cur) =>
+                      cur.filter((_, i) => i !== index),
+                    );
+                  }}
                   data-testid={`case-remove-step-${index}`}
                 >
                   Hapus
@@ -358,6 +419,15 @@ export function CaseModal({
               prefix={`steps.${index}.`}
               variant="compact"
               suggestions={suggestions}
+              deferredEvidence={{
+                fileName: pendingEvidence[index]?.file.name,
+                onSelected: (selection) =>
+                  setPendingEvidence((current) =>
+                    current.map((entry, stepIndex) =>
+                      stepIndex === index ? selection : entry,
+                    ),
+                  ),
+              }}
             />
           </fieldset>
         ))}
@@ -365,7 +435,8 @@ export function CaseModal({
 
       <p className="mt-2 text-[11px] text-faint">
         Langkah baru selalu tersimpan sebagai <b>Not Started</b> dengan progres 0%.
-        Status dan bukti diisi belakangan dari tabel tracker.
+        Link evidence dapat ditambahkan sekarang; status, progres, dan catatan bukti
+        dapat dilengkapi kemudian dari tabel tracker.
       </p>
     </>
   );

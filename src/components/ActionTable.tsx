@@ -412,7 +412,7 @@ function ItemDownloadLinks({
   item: DerivedActionItem;
   prefix?: string;
 }) {
-  const href = `/api/export/${encodeURIComponent(item.iapId)}`;
+  const href = `/api/export/${encodeURIComponent(item.iapId)}?step=${item.stepNo}`;
   const testSuffix = `${item.iapId}-${item.stepNo}`;
 
   return (
@@ -428,7 +428,7 @@ function ItemDownloadLinks({
         PDF
       </a>
       <a
-        href={`${href}?format=docx`}
+        href={`/api/export/${encodeURIComponent(item.iapId)}?format=docx&step=${item.stepNo}`}
         data-testid={`${prefix}item-docx-${testSuffix}`}
         title={`Unduh dokumen Word IAP ${item.iapId}`}
         className={ROW_LINK_CLASS}

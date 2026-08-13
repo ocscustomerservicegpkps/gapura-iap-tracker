@@ -22,8 +22,9 @@ Indonesian throughout, light theme only, no authentication.
   Analisis Akar Masalah, Parameter Keberhasilan (KPI) — live one row per case in a
   `Konteks` tab and are written from the app. A case created in the app carries its own
   context, and empty fields are not rendered at all.
-- **Evidence has a link.** Column P of `Tracker` holds the URL of the proof itself,
-  shown next to its `Bukti / Catatan` note.
+- **Evidence can be linked or uploaded.** Column Q of `Tracker` holds the URL of the
+  proof itself. Photos, PDFs, DOCs and DOCX files can be uploaded to the configured
+  Drive folder; the returned share link is written to Q and shown in both layouts.
 - **Charts and a phone layout**, so a PIC can update an item from the ramp.
 - **The case prints as the IAP document it came from.** Each row of the case summary
   offers `DOCX` and `PDF`: `/api/export/{ID}?format=docx` writes a Word file laid out
@@ -46,6 +47,13 @@ fixture in `src/fixtures/context-fixture.json`. Nothing touches Google.
 
 To run against the real spreadsheet, copy `.env.example` to `.env.local` and fill in the
 service account credentials.
+
+Share the evidence folder with `GOOGLE_SERVICE_ACCOUNT_EMAIL`, enable the Google Drive
+API in the same Google Cloud project, and set
+`GOOGLE_DRIVE_EVIDENCE_FOLDER_ID=1uOd0jovHI70Ff5vQ-cjTu0QXLB4yZsV6`. Uploaded files
+inherit the folder's access; the app does not make them public automatically.
+Drive filenames follow `ID_Tanggal_Stasiun_Langkah-N_Nama-Asli`, using the target
+date and station stored on that Tracker item.
 
 ## Testing
 
@@ -109,7 +117,7 @@ tests/e2e/       the whole test suite
 The `Tracker` tab keeps columns A–O exactly as they are — nothing is reordered or
 retyped (A, E and L numeric; the rest text). One column was **appended**:
 
-| P                 |
+| Q                 |
 | ----------------- |
 | `Link Evidence` — URL of the evidence itself, alongside the `Bukti / Catatan` note in O |
 
@@ -143,7 +151,7 @@ every case used to end with a filename it had no reason to show.
 **The application never creates spreadsheet tabs.** Against a live sheet that has no
 `Konteks` tab, the dashboard reads as "no context anywhere" and keeps working; saving a
 context returns a message naming the tab and the seven headers to add by hand. The same
-goes for `Tracker!P1` — add the `Link Evidence` header yourself. Growing the file's
+goes for `Tracker!Q1` — add the `Link Evidence` header yourself. Growing the file's
 structure stays the operator's decision.
 
 Every write locates its target row by re-reading the sheet and matching
@@ -169,7 +177,8 @@ touched.
 ## Deployment
 
 Deploys to Vercel as-is. Set `GOOGLE_SHEETS_SPREADSHEET_ID`,
-`GOOGLE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_PRIVATE_KEY` as environment variables, and
+`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` and
+`GOOGLE_DRIVE_EVIDENCE_FOLDER_ID` as environment variables, and
 leave `SHEETS_TRANSPORT` unset.
 
 **The deployed URL has no authentication** — a deliberate, recorded decision. Any

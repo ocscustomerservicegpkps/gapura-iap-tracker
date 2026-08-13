@@ -16,7 +16,7 @@ test.beforeEach(async ({ page, request }) => {
 });
 
 test.describe("link evidence", () => {
-  test("link tersimpan ke kolom P dan muncul sebagai tautan pada baris", async ({
+  test("link tersimpan ke kolom Q dan muncul sebagai tautan pada baris", async ({
     page,
     request,
   }) => {
@@ -107,5 +107,48 @@ test.describe("link evidence", () => {
     );
     await revealItem(page, "HU702", 1);
     await expect(page.getByTestId("evidence-link-HU702-1")).toHaveCount(0);
+  });
+
+  test("user dapat memilih foto dan link hasil upload tersimpan", async ({
+    page,
+    request,
+  }) => {
+    await page.route("**/api/evidence/HU702/1", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          url: "https://drive.google.com/file/d/foto-evidence/view",
+          name: "briefing.png",
+        }),
+      });
+    });
+
+    await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-photo").check();
+    await page.getByTestId("field-evidence-file").setInputFiles({
+      name: "briefing.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("fake-png"),
+    });
+    await expect(page.getByTestId("evidence-uploaded")).toContainText(
+      "briefing.png berhasil diunggah",
+    );
+    await page.getByTestId("item-save").click();
+    await expectModalClosed(page, "item-modal");
+
+    const row = findRow(await readDataRows(request), "HU702", 1);
+    expect(row[COL.evidenceLink]).toBe(
+      "https://drive.google.com/file/d/foto-evidence/view",
+    );
+  });
+
+  test("pilihan dokumen menerima PDF, DOC, dan DOCX", async ({ page }) => {
+    await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-document").check();
+    await expect(page.getByTestId("field-evidence-file")).toHaveAttribute(
+      "accept",
+      /\.pdf,\.doc,\.docx/,
+    );
   });
 });

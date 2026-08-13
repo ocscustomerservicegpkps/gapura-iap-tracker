@@ -18,11 +18,26 @@ export async function GET(
   { params }: { params: Promise<{ iapId: string }> },
 ) {
   const { iapId } = await params;
+  const search = new URL(request.url).searchParams;
+  const rawStep = search.get("step");
+  const requestedStep = parseStep(rawStep);
+  if (rawStep !== null && requestedStep === null) {
+    return new Response("Nomor langkah tidak valid.", {
+      status: 400,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
   const [items, contexts] = await Promise.all([readItems(), readContexts()]);
-  const rows = items.filter((item) => item.iapId === iapId);
+  const caseRows = items.filter((item) => item.iapId === iapId);
+  const rows = requestedStep !== null
+    ? caseRows.filter((item) => item.stepNo === requestedStep)
+    : caseRows;
 
-  if (rows.length === 0) {
-    return new Response(`Kasus IAP "${iapId}" tidak ditemukan.`, {
+  if (caseRows.length === 0 || rows.length === 0) {
+    const target = requestedStep
+      ? `Kasus IAP "${iapId}" langkah ${requestedStep}`
+      : `Kasus IAP "${iapId}"`;
+    return new Response(`${target} tidak ditemukan.`, {
       status: 404,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
@@ -30,10 +45,11 @@ export async function GET(
 
   const doc = buildIapDocument(rows, contexts[iapId] ?? null);
 
-  if (new URL(request.url).searchParams.get("format") === "docx") {
+  if (search.get("format") === "docx") {
     // A filename header is bytes, not text: anything outside ASCII is dropped rather
     // than sent raw, and IAP ids are alphanumeric anyway.
-    const name = `IAP-${iapId.replace(/[^A-Za-z0-9._-]/g, "_")}.docx`;
+    const suffix = requestedStep ? `-Langkah-${requestedStep}` : "";
+    const name = `IAP-${iapId.replace(/[^A-Za-z0-9._-]/g, "_")}${suffix}.docx`;
     return new Response(new Uint8Array(renderDocx(doc)), {
       headers: {
         "Content-Type": DOCX_CONTENT_TYPE,
@@ -45,4 +61,10 @@ export async function GET(
   return new Response(renderPrintHtml(doc), {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
+}
+
+function parseStep(raw: string | null): number | null {
+  if (raw === null) return null;
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : null;
 }

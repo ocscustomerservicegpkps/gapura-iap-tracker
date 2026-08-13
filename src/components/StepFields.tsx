@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { STATUSES, type Status } from "@/domain/types";
 import type { FieldErrors, StepInput } from "@/domain/validate";
 import { STATUS_LABEL } from "./status-styles";
@@ -44,6 +45,24 @@ interface StepFieldsProps {
    */
   variant?: "full" | "compact";
   suggestions?: Suggestions;
+  evidenceUpload?: EvidenceUploadTarget;
+  deferredEvidence?: DeferredEvidenceTarget;
+}
+
+export interface EvidenceUploadTarget {
+  iapId: string;
+  stepNo: number;
+  onUploaded: (url: string) => void;
+}
+
+export interface DeferredEvidenceTarget {
+  fileName?: string;
+  onSelected: (selection: DeferredEvidenceSelection | null) => void;
+}
+
+export interface DeferredEvidenceSelection {
+  kind: "photo" | "document";
+  file: File;
 }
 
 export function StepFields({
@@ -53,6 +72,8 @@ export function StepFields({
   prefix = "",
   variant = "full",
   suggestions = NO_SUGGESTIONS,
+  evidenceUpload,
+  deferredEvidence,
 }: StepFieldsProps) {
   const set = <K extends keyof StepFormState>(
     key: K,
@@ -248,27 +269,231 @@ export function StepFields({
             />
           </Field>
 
-          <Field
-            htmlFor={id("evidenceLink")}
-            label="Link Evidence"
-            hint="URL lengkap (http:// atau https://) ke folder Drive, foto, atau daftar hadir."
+          <EvidenceAttachmentField
+            id={id}
             error={error("evidenceLink")}
-            className="sm:col-span-2"
-          >
-            <input
-              type="url"
-              inputMode="url"
-              placeholder="https://drive.google.com/…"
-              className="field"
-              data-testid={id("field-evidence-link")}
-              value={value.evidenceLink}
-              onChange={(e) => set("evidenceLink", e.target.value)}
-              {...wire("evidenceLink", true)}
-            />
-          </Field>
+            link={value.evidenceLink}
+            onLinkChange={(link) => set("evidenceLink", link)}
+            uploadTarget={evidenceUpload}
+            deferredTarget={deferredEvidence}
+          />
         </>
       ) : null}
+
+      {variant === "compact" ? (
+        <EvidenceAttachmentField
+          id={id}
+          error={error("evidenceLink")}
+          link={value.evidenceLink}
+          onLinkChange={(link) => set("evidenceLink", link)}
+          deferredTarget={deferredEvidence}
+        />
+      ) : null}
     </div>
+  );
+}
+
+type EvidenceMode = "link" | "photo" | "document";
+
+function EvidenceAttachmentField({
+  id,
+  error,
+  link,
+  onLinkChange,
+  uploadTarget,
+  deferredTarget,
+}: {
+  id: (name: string) => string;
+  error?: string;
+  link: string;
+  onLinkChange: (link: string) => void;
+  uploadTarget?: EvidenceUploadTarget;
+  deferredTarget?: DeferredEvidenceTarget;
+}) {
+  const [mode, setMode] = useState<EvidenceMode>("link");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadedName, setUploadedName] = useState<string | null>(null);
+  const isDeferred = !uploadTarget && !!deferredTarget;
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    if (deferredTarget && !uploadTarget) {
+      onLinkChange("");
+      deferredTarget.onSelected({ kind: mode as "photo" | "document", file });
+      setUploadError(null);
+      setUploadedName(file.name);
+      return;
+    }
+    if (!uploadTarget) return;
+    setUploading(true);
+    setUploadError(null);
+    setUploadedName(null);
+    try {
+      const body = new FormData();
+      body.set("kind", mode);
+      body.set("file", file);
+      const response = await fetch(
+        `/api/evidence/${encodeURIComponent(uploadTarget.iapId)}/${uploadTarget.stepNo}`,
+        { method: "POST", body },
+      );
+      const result = (await response.json()) as {
+        url?: string;
+        name?: string;
+        error?: string;
+      };
+      if (!response.ok || !result.url) {
+        throw new Error(result.error || "Upload evidence gagal.");
+      }
+      onLinkChange(result.url);
+      uploadTarget.onUploaded(result.url);
+      setUploadedName(result.name || file.name);
+    } catch (cause) {
+      setUploadError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const inputId = id("evidenceLink");
+  const selectMode = (next: EvidenceMode) => {
+    const changed = next !== mode;
+    setMode(next);
+    setUploadError(null);
+    if (changed) {
+      setUploadedName(null);
+      deferredTarget?.onSelected(null);
+    }
+  };
+  return (
+    <div className="sm:col-span-2">
+      <fieldset>
+        <legend className="label">Evidence</legend>
+        <div className="mb-2 flex flex-wrap gap-2" data-testid={id("evidence-modes")}>
+          <EvidenceModeChoice
+            checked={mode === "link"}
+            label="Link Evidence"
+            testId={id("evidence-mode-link")}
+            groupName={id("evidence-mode")}
+            onChange={() => selectMode("link")}
+          />
+          <EvidenceModeChoice
+            checked={mode === "photo"}
+            label="Upload Foto"
+            testId={id("evidence-mode-photo")}
+            groupName={id("evidence-mode")}
+            onChange={() => selectMode("photo")}
+          />
+          <EvidenceModeChoice
+            checked={mode === "document"}
+            label="Upload Dokumen"
+            testId={id("evidence-mode-document")}
+            groupName={id("evidence-mode")}
+            onChange={() => selectMode("document")}
+          />
+        </div>
+      </fieldset>
+
+      {mode === "link" ? (
+        <input
+          id={inputId}
+          type="url"
+          inputMode="url"
+          placeholder="https://drive.google.com/…"
+          className="field"
+          data-testid={id("field-evidence-link")}
+          value={link}
+          onChange={(event) => onLinkChange(event.target.value)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={`${inputId}-note`}
+        />
+      ) : (
+        <div>
+          <input
+            id={inputId}
+            type="file"
+            accept={
+              mode === "photo"
+                ? "image/jpeg,image/png,image/webp,image/heic,image/heif"
+                : ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            }
+            className="field file:mr-3 file:rounded file:border-0 file:bg-head file:px-2 file:py-1"
+            data-testid={id("field-evidence-file")}
+            disabled={(!uploadTarget && !deferredTarget) || uploading}
+            onChange={(event) => void upload(event.target.files?.[0])}
+            aria-describedby={`${inputId}-note`}
+          />
+          {!uploadTarget && !deferredTarget ? (
+            <p className="mt-1 text-[11px] text-running-ink">
+              Simpan item terlebih dahulu, lalu buka Ubah untuk mengunggah file.
+            </p>
+          ) : null}
+        </div>
+      )}
+
+      <span id={`${inputId}-note`} className="mt-1 block text-[11px] text-faint">
+        {mode === "link"
+          ? "Masukkan URL lengkap yang diawali http:// atau https://."
+          : isDeferred
+            ? "File maksimal 10 MB. File akan diunggah setelah kasus berhasil dibuat."
+            : "File maksimal 10 MB. File disimpan ke Google Drive dan link-nya otomatis ditulis ke kolom Q."}
+      </span>
+      {uploading ? (
+        <p className="mt-1 text-[11.5px] text-accent" role="status">
+          Mengunggah ke Google Drive…
+        </p>
+      ) : null}
+      {uploadedName ? (
+        <p className="mt-1 text-[11.5px] text-done" role="status" data-testid={id("evidence-uploaded")}>
+          {isDeferred
+            ? `${uploadedName} siap diunggah saat kasus disimpan.`
+            : `${uploadedName} berhasil diunggah dan link tersimpan.`}
+        </p>
+      ) : null}
+      {uploadError || error ? (
+        <p className="mt-1 text-[11.5px] text-late-ink" role="alert" data-testid={id("evidence-upload-error")}>
+          {uploadError || error}
+        </p>
+      ) : null}
+      {link && mode !== "link" ? (
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 block text-[11.5px] font-semibold text-accent underline"
+        >
+          Buka evidence tersimpan ↗
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
+function EvidenceModeChoice({
+  checked,
+  label,
+  testId,
+  groupName,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  testId: string;
+  groupName: string;
+  onChange: () => void;
+}) {
+  return (
+    <label className={`flex cursor-pointer items-center gap-1.5 rounded-[6px] border px-2.5 py-1.5 text-[11.5px] font-semibold ${checked ? "border-accent bg-done-soft text-accent" : "border-line text-ink-mid"}`}>
+      <input
+        type="radio"
+        name={groupName}
+        checked={checked}
+        onChange={onChange}
+        data-testid={testId}
+        className="accent-accent"
+      />
+      {label}
+    </label>
   );
 }
 
