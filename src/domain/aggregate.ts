@@ -1,4 +1,5 @@
 import { isDueWithin } from "./overdue";
+import { safeLinks } from "./rows";
 import type {
   CaseSummary,
   DerivedActionItem,
@@ -61,12 +62,16 @@ export function summariseByCase(
         iapId: item.iapId,
         title: item.title,
         station: item.station,
+        evidenceLinks: [],
         pctClosed: 0,
         ...emptyCounts(),
       };
       byCase.set(item.iapId, summary);
     }
     tally(summary, item);
+    for (const link of safeLinks(item.evidenceLink)) {
+      if (!summary.evidenceLinks.includes(link)) summary.evidenceLinks.push(link);
+    }
   }
   for (const summary of byCase.values()) {
     summary.pctClosed = percentClosed(summary.closed, summary.total);

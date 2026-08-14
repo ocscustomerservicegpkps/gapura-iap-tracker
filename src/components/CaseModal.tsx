@@ -1,7 +1,11 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { createCaseAction, updateCaseAction } from "@/app/actions";
+import {
+  appendCaseEvidenceAction,
+  createCaseAction,
+  updateCaseAction,
+} from "@/app/actions";
 import {
   CONTEXT_FIELD_COUNT,
   emptyContext,
@@ -10,7 +14,10 @@ import {
 } from "@/domain/context";
 import type { FieldErrors } from "@/domain/validate";
 import type { DerivedActionItem } from "@/domain/types";
-import { CaseEvidencePanel } from "./CaseEvidencePanel";
+import {
+  CaseEvidencePanel,
+  type PendingCaseEvidenceLink,
+} from "./CaseEvidencePanel";
 import { Modal } from "./Modal";
 import {
   EMPTY_STEP,
@@ -93,6 +100,9 @@ export function CaseModal({
     Array<DeferredEvidenceSelection | null>
   >([null]);
   const [caseCreated, setCaseCreated] = useState(false);
+  const [caseEvidenceLink, setCaseEvidenceLink] =
+    useState<PendingCaseEvidenceLink | null>(null);
+  const [evidenceBusy, setEvidenceBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, startTransition] = useTransition();
   const [current, setCurrent] = useState(0);
@@ -111,7 +121,8 @@ export function CaseModal({
   );
   const dirty =
     JSON.stringify({ iapId, title, station, ctx, steps }) !== opened.current ||
-    pendingEvidence.some(Boolean);
+    pendingEvidence.some(Boolean) ||
+    caseEvidenceLink !== null;
 
   useErrorFocus(errors);
 
@@ -187,6 +198,24 @@ export function CaseModal({
             setErrors({ form: uploadError });
             return;
           }
+        } else if (caseEvidenceLink) {
+          const evidenceResult = await runAction(() =>
+            appendCaseEvidenceAction(
+              existing.iapId,
+              caseEvidenceLink.stepNos,
+              caseEvidenceLink.link,
+            ),
+          );
+          if (!evidenceResult.ok) {
+            setErrors({
+              form:
+                Object.values(evidenceResult.errors)[0] ??
+                "Gagal menyimpan Link Evidence.",
+            });
+            return;
+          }
+          setCaseEvidenceLink(null);
+          onEvidenceStored();
         }
         onSaved();
         return;
@@ -466,7 +495,7 @@ export function CaseModal({
             type="button"
             className="btn"
             onClick={onClose}
-            disabled={pending}
+            disabled={pending || evidenceBusy}
           >
             Batal
           </button>
@@ -475,7 +504,7 @@ export function CaseModal({
               type="button"
               className="btn"
               onClick={() => setCurrent(current - 1)}
-              disabled={pending}
+              disabled={pending || evidenceBusy}
               data-testid="case-back"
             >
               ← Kembali
@@ -495,7 +524,7 @@ export function CaseModal({
               type="button"
               className="btn btn-primary"
               onClick={submit}
-              disabled={pending}
+              disabled={pending || evidenceBusy}
               data-testid="case-save"
             >
               {pending ? "Menyimpan…" : "Simpan"}
@@ -587,6 +616,8 @@ export function CaseModal({
               iapId={existing.iapId}
               steps={caseSteps}
               onStored={onEvidenceStored}
+              onLinkDraftChange={setCaseEvidenceLink}
+              onBusyChange={setEvidenceBusy}
             />
           </Section>
         </>

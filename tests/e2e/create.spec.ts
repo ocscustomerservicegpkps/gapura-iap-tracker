@@ -159,6 +159,7 @@ test.describe("membuat kasus IAP baru", () => {
         .getByTestId(`steps.${index}.field-target-date`)
         .fill("2026-11-30");
       if (draft.evidenceLink) {
+        await page.getByTestId(`steps.${index}.evidence-mode-link`).check();
         await page
           .getByTestId(`steps.${index}.field-evidence-link`)
           .fill(draft.evidenceLink);

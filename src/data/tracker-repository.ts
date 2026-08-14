@@ -3,7 +3,13 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { todayInJakarta } from "@/domain/dates";
 import { withHealedOverdue } from "@/domain/overdue";
-import { itemToRow, rowToItem, safeLink, type CellValue } from "@/domain/rows";
+import {
+  itemToRow,
+  rowToItem,
+  safeLink,
+  safeLinks,
+  type CellValue,
+} from "@/domain/rows";
 import type { ActionItem, ItemKey } from "@/domain/types";
 import type { CaseInput, FieldErrors, StepInput } from "@/domain/validate";
 import { getTransport } from "@/sheets";
@@ -149,9 +155,38 @@ export async function updateStep(
 
   const updated = applyStep(target.item, input, todayInJakarta());
   await getTransport().writeRanges([
-    { range: rowRange(target.rowNumber), values: [itemToRow(updated)] },
+    {
+      range: rowRange(target.rowNumber),
+      values: [
+        itemToRow({
+          ...updated,
+          evidenceLink: mergeEvidenceLinks(
+            target.item.evidenceLink,
+            updated.evidenceLink,
+          ),
+        }),
+      ],
+    },
   ]);
   return { ok: true };
+}
+
+/**
+ * Saving a row rewrites A–Q in one go, which would let a stale form overwrite column
+ * Q with whatever it happened to hold when the dialog opened — losing every evidence
+ * link appended in the meantime, by an upload or by another author.
+ *
+ * `stored` is read fresh at the top of the write, so union-ing the two keeps the
+ * append-only guarantee that column Q is documented to have while still letting the
+ * user type a new link into the form. Removing a link is deliberately not possible
+ * from the UI; that is done in the spreadsheet.
+ */
+function mergeEvidenceLinks(stored: string, submitted: string): string {
+  const merged = safeLinks(stored);
+  for (const link of safeLinks(submitted)) {
+    if (!merged.includes(link)) merged.push(link);
+  }
+  return merged.join("\n");
 }
 
 /** Store an uploaded Drive file's share link without rewriting any other cell. */

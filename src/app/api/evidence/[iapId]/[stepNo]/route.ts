@@ -1,13 +1,12 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import {
   readItems,
-  appendEvidenceLink,
+  appendEvidenceLinks,
   TRACKER_TAG,
 } from "@/data/tracker-repository";
 import { todayInJakarta } from "@/domain/dates";
 import {
   deleteEvidenceFile,
-  MAX_EVIDENCE_BYTES,
   type EvidenceKind,
   uploadEvidenceFile,
   validateEvidenceFile,
@@ -27,14 +26,6 @@ export async function POST(
     return Response.json(
       { error: "Upload Google Drive tidak tersedia pada mode data offline." },
       { status: 503 },
-    );
-  }
-
-  const contentLength = Number(request.headers.get("content-length") ?? 0);
-  if (Number.isFinite(contentLength) && contentLength > MAX_EVIDENCE_BYTES + 64_000) {
-    return Response.json(
-      { error: "Ukuran file evidence maksimal 10 MB." },
-      { status: 413 },
     );
   }
 
@@ -60,23 +51,44 @@ export async function POST(
       return Response.json({ error: validationError }, { status: 400 });
     }
 
-    const key = { iapId, stepNo };
-    const item = (await readItems()).find(
-      (candidate) =>
-        candidate.iapId === key.iapId && candidate.stepNo === key.stepNo,
-    );
-    if (!item) {
+    const requestedStepNos = parseStepNos(form.get("stepNos"), stepNo);
+    if (!requestedStepNos) {
       return Response.json(
-        { error: `Item ${key.iapId} langkah ${key.stepNo} tidak ditemukan.` },
+        { error: "Daftar langkah tujuan evidence tidak valid." },
+        { status: 400 },
+      );
+    }
+
+    const keys = requestedStepNos.map((targetStepNo) => ({
+      iapId,
+      stepNo: targetStepNo,
+    }));
+    const items = await readItems();
+    const targetItems = keys.map((key) =>
+      items.find(
+        (candidate) =>
+          candidate.iapId === key.iapId && candidate.stepNo === key.stepNo,
+      ),
+    );
+    const missingIndex = targetItems.findIndex((item) => !item);
+    if (missingIndex >= 0) {
+      const missing = keys[missingIndex]!;
+      return Response.json(
+        { error: `Item ${missing.iapId} langkah ${missing.stepNo} tidak ditemukan.` },
         { status: 404 },
       );
     }
 
-    const uploaded = await uploadEvidenceFile(file, key, {
-      station: item.station,
-      date: item.targetDate || todayInJakarta(),
+    // Upload the binary once, then reuse its share link for every selected row.
+    // This mirrors the IRRS flow and avoids duplicate Drive files when the user
+    // selects "Semua Langkah Perbaikan".
+    const primaryKey = keys[0]!;
+    const primaryItem = targetItems[0]!;
+    const uploaded = await uploadEvidenceFile(file, primaryKey, {
+      station: primaryItem.station,
+      date: primaryItem.targetDate || todayInJakarta(),
     });
-    const saved = await appendEvidenceLink(key, uploaded.webViewLink);
+    const saved = await appendEvidenceLinks(keys, uploaded.webViewLink);
     if (!saved.ok) {
       try {
         await deleteEvidenceFile(uploaded.fileId);
@@ -91,7 +103,11 @@ export async function POST(
 
     revalidateTag(TRACKER_TAG);
     revalidatePath("/");
-    return Response.json({ url: uploaded.webViewLink, name: file.name });
+    return Response.json({
+      url: uploaded.webViewLink,
+      name: file.name,
+      stepNos: requestedStepNos,
+    });
   } catch (error) {
     console.error("Evidence upload failed", error);
     return Response.json(
@@ -101,14 +117,65 @@ export async function POST(
   }
 }
 
+function parseStepNos(value: FormDataEntryValue | null, fallback: number): number[] | null {
+  if (value === null) return [fallback];
+  if (typeof value !== "string") return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > 100) {
+      return null;
+    }
+    const unique = [...new Set(parsed)];
+    if (
+      unique.some(
+        (candidate) =>
+          typeof candidate !== "number" ||
+          !Number.isInteger(candidate) ||
+          candidate < 1,
+      )
+    ) {
+      return null;
+    }
+    return unique as number[];
+  } catch {
+    return null;
+  }
+}
+
 function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return true;
   try {
-    return new URL(origin).host === new URL(request.url).host;
+    const originUrl = new URL(origin);
+    const forwardedHost = request.headers
+      .get("x-forwarded-host")
+      ?.split(",")[0]
+      ?.trim();
+    const candidateHosts = [
+      request.headers.get("host")?.trim(),
+      forwardedHost,
+      new URL(request.url).host,
+    ].filter((host): host is string => Boolean(host));
+
+    return candidateHosts.some(
+      (candidate) =>
+        candidate === originUrl.host ||
+        sameLoopbackHost(candidate, originUrl.host),
+    );
   } catch {
     return false;
   }
+}
+
+function sameLoopbackHost(left: string, right: string): boolean {
+  const parse = (host: string) => {
+    const url = new URL(`http://${host}`);
+    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    return { loopback, port: url.port || "80" };
+  };
+  const a = parse(left);
+  const b = parse(right);
+  return a.loopback && b.loopback && a.port === b.port;
 }
 
 function messageOf(error: unknown): string {

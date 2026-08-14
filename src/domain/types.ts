@@ -85,6 +85,8 @@ export interface CaseSummary extends StatusCounts {
   iapId: string;
   title: string;
   station: string;
+  /** Unique column-Q links from every action row in this case, in sheet order. */
+  evidenceLinks: string[];
   pctClosed: number;
 }
 

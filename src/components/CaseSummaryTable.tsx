@@ -62,6 +62,15 @@ export function CaseSummaryTable({
             <div className="mt-0.5 text-[11px] text-faint">
               {summary.station}
             </div>
+            <div className="mt-2">
+              <div className="text-[11px] font-semibold text-label">Link Evidence</div>
+              <CaseEvidenceLinks
+                links={summary.evidenceLinks}
+                iapId={summary.iapId}
+                prefix="case-card"
+                className="mt-1"
+              />
+            </div>
 
             <dl className="mt-2.5 grid grid-cols-3 gap-2 text-[11.5px]">
               <Tally label="Total" value={summary.total} />
@@ -113,6 +122,7 @@ export function CaseSummaryTable({
             <tr className="border-b border-line">
               <Th>Number Flight / ID IAP</Th>
               <Th>Judul Kasus</Th>
+              <Th>Link Evidence</Th>
               <Th center>Total</Th>
               <Th center className="text-done">
                 Completed
@@ -145,6 +155,13 @@ export function CaseSummaryTable({
                   <span className="mt-0.5 block text-[11px] text-faint">
                     {summary.station}
                   </span>
+                </td>
+                <td className="min-w-[130px] px-2.5 py-2.5 align-top">
+                  <CaseEvidenceLinks
+                    links={summary.evidenceLinks}
+                    iapId={summary.iapId}
+                    prefix="case"
+                  />
                 </td>
                 <td className="px-2.5 py-2.5 text-center">{summary.total}</td>
                 <td className="px-2.5 py-2.5 text-center font-semibold text-done">
@@ -265,6 +282,38 @@ function DownloadLinks({ iapId, prefix }: { iapId: string; prefix: string }) {
         DOCX
       </a>
     </>
+  );
+}
+
+function CaseEvidenceLinks({
+  links,
+  iapId,
+  prefix,
+  className = "",
+}: {
+  links: readonly string[];
+  iapId: string;
+  prefix: string;
+  className?: string;
+}) {
+  if (links.length === 0) {
+    return <span className={`text-[11px] text-faint ${className}`}>—</span>;
+  }
+  return (
+    <div className={`space-y-1 ${className}`} aria-label={`Link Evidence ${iapId}`}>
+      {links.map((link, index) => (
+        <a
+          key={link}
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid={`${prefix}-evidence-${iapId}-${index + 1}`}
+          className="block text-[11.5px] font-semibold text-accent underline underline-offset-2"
+        >
+          Click Evidence {index + 1}
+        </a>
+      ))}
+    </div>
   );
 }
 

@@ -42,7 +42,9 @@ function toFormState(item: DerivedActionItem): StepFormState {
     progress: item.progress,
     actualDate: item.actualIso ?? "",
     evidence: item.evidence,
-    evidenceLink: item.evidenceLink,
+    // Column Q is append-only. Existing URLs stay visible in the dashboard but are
+    // deliberately not loaded into an editable field where they could be removed.
+    evidenceLink: "",
   };
 }
 
@@ -156,12 +158,7 @@ export function ItemModal({
             ? {
                 iapId,
                 stepNo: item.stepNo,
-                onUploaded: (url) => {
-                  const combined = form.evidenceLink
-                    ? `${form.evidenceLink}\n${url}`
-                    : url;
-                  setForm((current) => ({ ...current, evidenceLink: combined }));
-                  opened.current = { ...opened.current, evidenceLink: combined };
+                onUploaded: () => {
                   onEvidenceStored();
                 },
               }

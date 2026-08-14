@@ -16,12 +16,26 @@ test.beforeEach(async ({ page, request }) => {
 });
 
 test.describe("link evidence", () => {
+  test("menu evidence berurutan dokumen, foto, lalu link", async ({ page }) => {
+    await editItem(page, "HU702", 1);
+    await expect(page.getByTestId("evidence-modes")).toHaveText(
+      /Upload Dokumen\s*Upload Foto\s*Link Evidence/,
+    );
+    await page.getByRole("button", { name: "Batal" }).click();
+
+    await page.getByTestId("case-edit-HU702").click();
+    await expect(page.getByTestId("case-evidence-modes")).toHaveText(
+      /Upload Dokumen\s*Upload Foto\s*Link Evidence/,
+    );
+  });
+
   test("link tersimpan ke kolom Q dan muncul sebagai tautan pada baris", async ({
     page,
     request,
   }) => {
     await editItem(page, "HU702", 1);
     await page.getByTestId("field-evidence").fill("Daftar hadir briefing.");
+    await page.getByTestId("evidence-mode-link").check();
     await page
       .getByTestId("field-evidence-link")
       .fill("https://drive.google.com/drive/folders/bukti-hu702");
@@ -44,6 +58,9 @@ test.describe("link evidence", () => {
       );
       await expect(link).toHaveAttribute("rel", "noopener noreferrer");
     }
+    await expect(page.getByTestId("case-evidence-HU702-1")).toHaveText(
+      "Click Evidence 1",
+    );
   });
 
   test("baris tanpa link tidak menampilkan tautan", async ({ page }) => {
@@ -57,6 +74,7 @@ test.describe("link evidence", () => {
   }) => {
     await editItem(page, "HU702", 1);
     await page.getByTestId("field-evidence").fill("Diubah dari aplikasi.");
+    await page.getByTestId("evidence-mode-link").check();
     await page
       .getByTestId("field-evidence-link")
       .fill("https://example.com/bukti");
@@ -74,6 +92,7 @@ test.describe("link evidence", () => {
     request,
   }) => {
     await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-link").check();
     await page
       .getByTestId("field-evidence-link")
       // eslint-disable-next-line no-script-url
@@ -88,25 +107,30 @@ test.describe("link evidence", () => {
     expect(row[COL.evidenceLink] ?? "").toBe("");
   });
 
-  test("link dapat dikosongkan kembali", async ({ page, request }) => {
+  test("form Ubah tidak menampilkan link lama dan menyimpan tidak menghapusnya", async ({
+    page,
+    request,
+  }) => {
     await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-link").check();
     await page.getByTestId("field-evidence-link").fill("https://example.com/a");
     await page.getByTestId("item-save").click();
     await expectModalClosed(page, "item-modal");
 
     await editItem(page, "HU702", 1);
-    await expect(page.getByTestId("field-evidence-link")).toHaveValue(
-      "https://example.com/a",
-    );
-    await page.getByTestId("field-evidence-link").fill("");
+    await page.getByTestId("evidence-mode-link").check();
+    await expect(page.getByTestId("field-evidence-link")).toHaveValue("");
     await page.getByTestId("item-save").click();
     await expectModalClosed(page, "item-modal");
 
     expect(findRow(await readDataRows(request), "HU702", 1)[COL.evidenceLink]).toBe(
-      "",
+      "https://example.com/a",
     );
     await revealItem(page, "HU702", 1);
-    await expect(page.getByTestId("evidence-link-HU702-1")).toHaveCount(0);
+    await expect(page.getByTestId("evidence-link-HU702-1")).toHaveAttribute(
+      "href",
+      "https://example.com/a",
+    );
   });
 
   test("user dapat memilih foto dan link hasil upload tersimpan", async ({
@@ -125,6 +149,7 @@ test.describe("link evidence", () => {
     });
 
     await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-link").check();
     await page
       .getByTestId("field-evidence-link")
       .fill("https://example.com/bukti-sebelumnya");
@@ -159,11 +184,68 @@ test.describe("link evidence", () => {
     );
   });
 
+  test("Ubah kasus mengunggah satu file untuk beberapa langkah tujuan", async ({
+    page,
+  }) => {
+    let uploadCalls = 0;
+    let multipartBody = "";
+    await page.route("**/api/evidence/HU702/1", async (route) => {
+      uploadCalls += 1;
+      multipartBody = route.request().postDataBuffer()?.toString("utf8") ?? "";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          url: "https://drive.google.com/file/d/dokumen-bersama/view",
+          name: "evidence.pdf",
+          stepNos: [1, 2],
+        }),
+      });
+    });
+
+    await page.getByTestId("case-edit-HU702").click();
+    await expect(page.getByTestId("case-evidence-panel")).toBeVisible();
+    await page.getByTestId("case-evidence-target-selected").check();
+    await page.getByTestId("case-evidence-step-1").check();
+    await page.getByTestId("case-evidence-step-2").check();
+    await page.getByTestId("case-evidence-mode-document").check();
+    await page.getByTestId("case-evidence-file").setInputFiles({
+      name: "evidence.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("fake-pdf"),
+    });
+
+    await expect(page.getByTestId("case-evidence-success")).toContainText(
+      "ditambahkan ke 2 langkah",
+    );
+    expect(uploadCalls).toBe(1);
+    expect(multipartBody).toContain("[1,2]");
+  });
+
+  test("mengganti input link ke dokumen tidak memicu controlled input warning", async ({
+    page,
+  }) => {
+    const controlledInputWarnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.text().includes("controlled input to be uncontrolled")) {
+        controlledInputWarnings.push(message.text());
+      }
+    });
+
+    await page.getByTestId("case-edit-HU702").click();
+    await expect(page.getByTestId("case-evidence-panel")).toBeVisible();
+    await page.getByTestId("case-evidence-mode-document").check();
+    await page.getByTestId("case-evidence-mode-link").check();
+
+    expect(controlledInputWarnings).toEqual([]);
+  });
+
   test("Ubah kasus menambahkan evidence ke langkah terpilih tanpa menimpa link lama", async ({
     page,
     request,
   }) => {
     await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-link").check();
     await page
       .getByTestId("field-evidence-link")
       .fill("https://example.com/evidence-lama");
@@ -174,13 +256,13 @@ test.describe("link evidence", () => {
     await expect(page.getByTestId("case-evidence-panel")).toBeVisible();
     await page.getByTestId("case-evidence-target-selected").check();
     await page.getByTestId("case-evidence-step-1").check();
+    await page.getByTestId("case-evidence-mode-link").check();
     await page
       .getByTestId("case-evidence-link")
       .fill("https://example.com/evidence-baru");
-    await page.getByTestId("case-evidence-upload").click();
-    await expect(page.getByTestId("case-evidence-success")).toContainText(
-      "ditambahkan ke 1 langkah",
-    );
+    await expect(page.getByTestId("case-evidence-upload")).toHaveCount(0);
+    await page.getByTestId("case-save").click();
+    await expectModalClosed(page, "case-modal");
 
     const rows = await readDataRows(request);
     expect(findRow(rows, "HU702", 1)[COL.evidenceLink]).toBe(
@@ -188,7 +270,6 @@ test.describe("link evidence", () => {
     );
     expect(findRow(rows, "HU702", 2)[COL.evidenceLink] ?? "").toBe("");
 
-    await page.getByRole("button", { name: "Batal" }).click();
     await revealItem(page, "HU702", 1);
     await expect(page.getByTestId("evidence-link-HU702-1")).toHaveAttribute(
       "href",

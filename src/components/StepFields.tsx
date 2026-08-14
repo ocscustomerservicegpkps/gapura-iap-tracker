@@ -310,7 +310,7 @@ function EvidenceAttachmentField({
   uploadTarget?: EvidenceUploadTarget;
   deferredTarget?: DeferredEvidenceTarget;
 }) {
-  const [mode, setMode] = useState<EvidenceMode>("link");
+  const [mode, setMode] = useState<EvidenceMode>("document");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadedName, setUploadedName] = useState<string | null>(null);
@@ -345,6 +345,9 @@ function EvidenceAttachmentField({
       if (!response.ok || !result.url) {
         throw new Error(result.error || "Upload evidence gagal.");
       }
+      // Keep the new URL in the form payload as well. The API has already appended
+      // it to Q, and the repository's de-duplicating merge makes the later Save safe.
+      // It remains hidden while file mode is active, so existing links are not editable.
       onLinkChange(result.url);
       uploadTarget.onUploaded(result.url);
       setUploadedName(result.name || file.name);
@@ -361,6 +364,7 @@ function EvidenceAttachmentField({
     setMode(next);
     setUploadError(null);
     if (changed) {
+      onLinkChange("");
       setUploadedName(null);
       deferredTarget?.onSelected(null);
     }
@@ -371,11 +375,11 @@ function EvidenceAttachmentField({
         <legend className="label">Evidence</legend>
         <div className="mb-2 flex flex-wrap gap-2" data-testid={id("evidence-modes")}>
           <EvidenceModeChoice
-            checked={mode === "link"}
-            label="Link Evidence"
-            testId={id("evidence-mode-link")}
+            checked={mode === "document"}
+            label="Upload Dokumen"
+            testId={id("evidence-mode-document")}
             groupName={id("evidence-mode")}
-            onChange={() => selectMode("link")}
+            onChange={() => selectMode("document")}
           />
           <EvidenceModeChoice
             checked={mode === "photo"}
@@ -385,11 +389,11 @@ function EvidenceAttachmentField({
             onChange={() => selectMode("photo")}
           />
           <EvidenceModeChoice
-            checked={mode === "document"}
-            label="Upload Dokumen"
-            testId={id("evidence-mode-document")}
+            checked={mode === "link"}
+            label="Link Evidence"
+            testId={id("evidence-mode-link")}
             groupName={id("evidence-mode")}
-            onChange={() => selectMode("document")}
+            onChange={() => selectMode("link")}
           />
         </div>
       </fieldset>
@@ -433,8 +437,8 @@ function EvidenceAttachmentField({
         {mode === "link"
           ? "Masukkan satu URL lengkap per baris. Tambahkan link baru di bawah link sebelumnya."
           : isDeferred
-            ? "File maksimal 10 MB. File akan diunggah setelah kasus berhasil dibuat."
-            : "File maksimal 10 MB. File disimpan ke Google Drive dan link-nya otomatis ditulis ke kolom Q."}
+            ? "File akan diunggah setelah kasus berhasil dibuat."
+            : "File disimpan ke Google Drive dan link-nya otomatis ditulis ke kolom Q."}
       </span>
       {uploading ? (
         <p className="mt-1 text-[11.5px] text-accent" role="status">
@@ -452,16 +456,6 @@ function EvidenceAttachmentField({
         <p className="mt-1 text-[11.5px] text-late-ink" role="alert" data-testid={id("evidence-upload-error")}>
           {uploadError || error}
         </p>
-      ) : null}
-      {link && mode !== "link" ? (
-        <a
-          href={link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 block text-[11.5px] font-semibold text-accent underline"
-        >
-          Buka evidence tersimpan ↗
-        </a>
       ) : null}
     </div>
   );

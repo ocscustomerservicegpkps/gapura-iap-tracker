@@ -1,7 +1,7 @@
 import "server-only";
 
 import { Readable } from "node:stream";
-import { google } from "googleapis";
+import { google, type drive_v3 } from "googleapis";
 import {
   evidenceFileName,
   type EvidenceFileIdentity,
@@ -14,8 +14,6 @@ import {
 
 export type EvidenceKind = "photo" | "document";
 
-export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
-
 const PHOTO_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -24,11 +22,27 @@ const PHOTO_TYPES = new Set([
   "image/heif",
 ]);
 
+const PHOTO_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "heic", "heif"]);
+
 const DOCUMENT_TYPES = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+
+const DOCUMENT_EXTENSIONS = new Set(["pdf", "doc", "docx"]);
+
+const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
 
 export interface UploadedEvidence {
   fileId: string;
@@ -81,12 +95,17 @@ export function validateEvidenceFile(
   kind: EvidenceKind,
 ): string | null {
   if (file.size === 0) return "File evidence kosong.";
-  if (file.size > MAX_EVIDENCE_BYTES) {
-    return "Ukuran file evidence maksimal 10 MB.";
-  }
+  const allowedTypes = kind === "photo" ? PHOTO_TYPES : DOCUMENT_TYPES;
+  const allowedExtensions =
+    kind === "photo" ? PHOTO_EXTENSIONS : DOCUMENT_EXTENSIONS;
+  const mimeType = file.type.trim().toLowerCase();
+  const extension = fileExtension(file.name);
 
-  const allowed = kind === "photo" ? PHOTO_TYPES : DOCUMENT_TYPES;
-  if (!allowed.has(file.type.toLowerCase())) {
+  // Windows and a number of browsers report DOC/DOCX/HEIC files with an empty
+  // MIME type or application/octet-stream. The file picker already filters by
+  // extension, so the server accepts the same explicit extension list instead of
+  // rejecting a valid selection before it can ever reach Drive or column Q.
+  if (!allowedTypes.has(mimeType) && !allowedExtensions.has(extension)) {
     return kind === "photo"
       ? "Foto harus berformat JPG, PNG, WEBP, HEIC, atau HEIF."
       : "Dokumen harus berformat PDF, DOC, atau DOCX.";
@@ -101,6 +120,7 @@ export async function uploadEvidenceFile(
 ): Promise<UploadedEvidence> {
   const drive = google.drive({ version: "v3", auth: evidenceAuth() });
   const fileName = evidenceFileName(file.name, key, identity);
+  const mimeType = evidenceMimeType(file);
   const bytes = Buffer.from(await file.arrayBuffer());
   let uploaded;
   try {
@@ -108,11 +128,11 @@ export async function uploadEvidenceFile(
       supportsAllDrives: true,
       requestBody: {
         name: fileName,
-        mimeType: file.type,
+        mimeType,
         parents: [evidenceDriveFolderId()],
       },
       media: {
-        mimeType: file.type,
+        mimeType,
         body: Readable.from(bytes),
       },
       fields: "id,webViewLink",
@@ -129,12 +149,54 @@ export async function uploadEvidenceFile(
 
   const fileId = uploaded.data.id;
   if (!fileId) throw new Error("Google Drive tidak mengembalikan ID file.");
+
+  await shareByLink(drive, fileId);
+
   return {
     fileId,
     webViewLink:
       uploaded.data.webViewLink ??
       `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`,
   };
+}
+
+function fileExtension(fileName: string): string {
+  const lastDot = fileName.lastIndexOf(".");
+  return lastDot < 0 ? "" : fileName.slice(lastDot + 1).trim().toLowerCase();
+}
+
+function evidenceMimeType(file: File): string {
+  const supplied = file.type.trim().toLowerCase();
+  if (supplied && supplied !== "application/octet-stream") return supplied;
+  return MIME_BY_EXTENSION[fileExtension(file.name)] ?? "application/octet-stream";
+}
+
+/**
+ * A freshly uploaded file is private to whichever account the upload credentials
+ * belong to. The share link then lands in column Q looking perfectly normal while
+ * everybody else — including the person who just uploaded it from a different Google
+ * account — sees "You need access", and the Evidence IAP folder looks empty to them.
+ *
+ * Grant reader-by-link so the stored URL is actually openable. A Workspace policy can
+ * forbid `anyone` links; that is not a reason to fail an upload that already
+ * succeeded, so the failure is logged and the file stays owner-only.
+ */
+async function shareByLink(
+  drive: drive_v3.Drive,
+  fileId: string,
+): Promise<void> {
+  try {
+    await drive.permissions.create({
+      fileId,
+      supportsAllDrives: true,
+      requestBody: { role: "reader", type: "anyone" },
+    });
+  } catch (error) {
+    console.error(
+      `Evidence file ${fileId} tidak bisa dibagikan lewat link. Link di kolom Q hanya bisa dibuka oleh pemilik file.`,
+      error,
+    );
+  }
 }
 
 /** Best-effort rollback when the sheet write fails after Drive accepted the file. */
