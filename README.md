@@ -49,10 +49,20 @@ fixture in `src/fixtures/context-fixture.json`. Nothing touches Google.
 To run against the real spreadsheet, copy `.env.example` to `.env.local` and fill in the
 service account credentials.
 
-Share the evidence folder with `GOOGLE_SERVICE_ACCOUNT_EMAIL`, enable the Google Drive
-API in the same Google Cloud project, and set
-`GOOGLE_DRIVE_EVIDENCE_FOLDER_ID=1uOd0jovHI70Ff5vQ-cjTu0QXLB4yZsV6`. Uploaded files
-inherit the folder's access; the app does not make them public automatically.
+Enable the Google Drive API and set
+`GOOGLE_DRIVE_EVIDENCE_FOLDER_ID=1uOd0jovHI70Ff5vQ-cjTu0QXLB4yZsV6`. A service
+account has no personal Drive storage quota, so a normal **My Drive** folder must use
+the folder owner's OAuth credentials through `GOOGLE_DRIVE_OAUTH_CLIENT_ID`,
+`GOOGLE_DRIVE_OAUTH_CLIENT_SECRET`, and `GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN`. A folder
+inside a **Shared Drive** may instead use the service account after it is added as a
+member. Uploaded files inherit the folder's access; the app does not make them public
+automatically.
+
+For a My Drive folder, create a **Desktop app** OAuth client in the same Google Cloud
+project, put its client ID and client secret in `.env.local`, then run
+`npm run authorize-drive`. Open the printed URL and sign in as the folder owner. The
+command stores `GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN` in `.env.local` automatically;
+restart the application afterward so the new credential is loaded.
 Drive filenames follow `ID_Tanggal_Stasiun_Langkah-N_Nama-Asli`, using the target
 date and station stored on that Tracker item.
 

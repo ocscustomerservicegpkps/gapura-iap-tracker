@@ -35,6 +35,47 @@ export interface UploadedEvidence {
   webViewLink: string;
 }
 
+/**
+ * A service account can edit Sheets, but it has no personal Drive storage quota.
+ * Uploads to a normal My Drive folder therefore use the folder owner's OAuth
+ * credentials when configured. Shared Drive folders may continue using the service
+ * account fallback because their files consume the shared drive's storage.
+ */
+function evidenceAuth() {
+  const clientId = process.env.GOOGLE_DRIVE_OAUTH_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET?.trim();
+  const refreshToken = process.env.GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN?.trim();
+  const oauthValues = [clientId, clientSecret, refreshToken];
+  const configuredValues = oauthValues.filter(Boolean).length;
+
+  if (oauthValues.some((value) => value && /^(ISI_|your_|change_me|xxx)/i.test(value))) {
+    throw new Error(
+      "Konfigurasi OAuth Google Drive masih berisi placeholder. Gunakan Client ID, Client Secret, dan Refresh Token yang asli.",
+    );
+  }
+
+  if (configuredValues > 0 && configuredValues < oauthValues.length) {
+    throw new Error(
+      "Konfigurasi OAuth Google Drive belum lengkap. Isi GOOGLE_DRIVE_OAUTH_CLIENT_ID, GOOGLE_DRIVE_OAUTH_CLIENT_SECRET, dan GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN.",
+    );
+  }
+
+  if (clientId && clientSecret && refreshToken) {
+    const auth = new google.auth.OAuth2(clientId, clientSecret);
+    auth.setCredentials({ refresh_token: refreshToken });
+    return auth;
+  }
+
+  const credentials = googleCredentials();
+  return new google.auth.GoogleAuth({
+    credentials: {
+      client_email: credentials.clientEmail,
+      private_key: credentials.privateKey.replace(/\\n/g, "\n"),
+    },
+    scopes: ["https://www.googleapis.com/auth/drive"],
+  });
+}
+
 export function validateEvidenceFile(
   file: File,
   kind: EvidenceKind,
@@ -58,30 +99,33 @@ export async function uploadEvidenceFile(
   key: ItemKey,
   identity: EvidenceFileIdentity,
 ): Promise<UploadedEvidence> {
-  const credentials = googleCredentials();
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: credentials.clientEmail,
-      private_key: credentials.privateKey.replace(/\\n/g, "\n"),
-    },
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
-  const drive = google.drive({ version: "v3", auth });
+  const drive = google.drive({ version: "v3", auth: evidenceAuth() });
   const fileName = evidenceFileName(file.name, key, identity);
   const bytes = Buffer.from(await file.arrayBuffer());
-  const uploaded = await drive.files.create({
-    supportsAllDrives: true,
-    requestBody: {
-      name: fileName,
-      mimeType: file.type,
-      parents: [evidenceDriveFolderId()],
-    },
-    media: {
-      mimeType: file.type,
-      body: Readable.from(bytes),
-    },
-    fields: "id,webViewLink",
-  });
+  let uploaded;
+  try {
+    uploaded = await drive.files.create({
+      supportsAllDrives: true,
+      requestBody: {
+        name: fileName,
+        mimeType: file.type,
+        parents: [evidenceDriveFolderId()],
+      },
+      media: {
+        mimeType: file.type,
+        body: Readable.from(bytes),
+      },
+      fields: "id,webViewLink",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/storage quota|storageQuotaExceeded/i.test(message)) {
+      throw new Error(
+        "Service account tidak memiliki kuota Google Drive. Konfigurasikan OAuth akun pemilik folder melalui GOOGLE_DRIVE_OAUTH_CLIENT_ID, GOOGLE_DRIVE_OAUTH_CLIENT_SECRET, dan GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN.",
+      );
+    }
+    throw error;
+  }
 
   const fileId = uploaded.data.id;
   if (!fileId) throw new Error("Google Drive tidak mengembalikan ID file.");
@@ -95,15 +139,7 @@ export async function uploadEvidenceFile(
 
 /** Best-effort rollback when the sheet write fails after Drive accepted the file. */
 export async function deleteEvidenceFile(fileId: string): Promise<void> {
-  const credentials = googleCredentials();
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: credentials.clientEmail,
-      private_key: credentials.privateKey.replace(/\\n/g, "\n"),
-    },
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
-  await google.drive({ version: "v3", auth }).files.delete({
+  await google.drive({ version: "v3", auth: evidenceAuth() }).files.delete({
     fileId,
     supportsAllDrives: true,
   });
