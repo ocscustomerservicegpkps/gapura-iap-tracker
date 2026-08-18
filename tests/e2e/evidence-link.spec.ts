@@ -175,6 +175,57 @@ test.describe("link evidence", () => {
     );
   });
 
+  /**
+   * Saving closes the dialog and refreshes the page, which cancels whatever is
+   * still in flight. A user who picks a document and reaches straight for Simpan
+   * used to kill their own upload: nothing reached Drive, nothing reached column Q.
+   */
+  test("Simpan terkunci selama upload evidence masih berjalan", async ({
+    page,
+    request,
+  }) => {
+    let release: () => void = () => {};
+    const uploading = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/evidence/HU702/1", async (route) => {
+      await uploading;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          url: "https://drive.google.com/file/d/lambat/view",
+          name: "lambat.pdf",
+        }),
+      });
+    });
+
+    await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-document").check();
+    await page.getByTestId("field-evidence-file").setInputFiles({
+      name: "lambat.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4"),
+    });
+
+    await expect(page.getByTestId("item-evidence-busy")).toBeVisible();
+    await expect(page.getByTestId("item-save")).toBeDisabled();
+
+    release();
+    await expect(page.getByTestId("evidence-uploaded")).toContainText(
+      "lambat.pdf berhasil diunggah",
+    );
+    await expect(page.getByTestId("item-save")).toBeEnabled();
+
+    await page.getByTestId("item-save").click();
+    await expectModalClosed(page, "item-modal");
+
+    const row = findRow(await readDataRows(request), "HU702", 1);
+    expect(row[COL.evidenceLink]).toBe(
+      "https://drive.google.com/file/d/lambat/view",
+    );
+  });
+
   test("pilihan dokumen menerima PDF, DOC, dan DOCX", async ({ page }) => {
     await editItem(page, "HU702", 1);
     await page.getByTestId("evidence-mode-document").check();

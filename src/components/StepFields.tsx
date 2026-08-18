@@ -47,6 +47,12 @@ interface StepFieldsProps {
   suggestions?: Suggestions;
   evidenceUpload?: EvidenceUploadTarget;
   deferredEvidence?: DeferredEvidenceTarget;
+  /**
+   * Raised while a file is on its way to Drive. The dialog holding these fields
+   * uses it to keep Simpan and Batal out of reach: closing mid-upload tears down
+   * the request, and the file never reaches Drive or column Q.
+   */
+  onEvidenceBusyChange?: (busy: boolean) => void;
 }
 
 export interface EvidenceUploadTarget {
@@ -74,6 +80,7 @@ export function StepFields({
   suggestions = NO_SUGGESTIONS,
   evidenceUpload,
   deferredEvidence,
+  onEvidenceBusyChange,
 }: StepFieldsProps) {
   const set = <K extends keyof StepFormState>(
     key: K,
@@ -276,6 +283,7 @@ export function StepFields({
             onLinkChange={(link) => set("evidenceLink", link)}
             uploadTarget={evidenceUpload}
             deferredTarget={deferredEvidence}
+            onBusyChange={onEvidenceBusyChange}
           />
         </>
       ) : null}
@@ -287,6 +295,7 @@ export function StepFields({
           link={value.evidenceLink}
           onLinkChange={(link) => set("evidenceLink", link)}
           deferredTarget={deferredEvidence}
+          onBusyChange={onEvidenceBusyChange}
         />
       ) : null}
     </div>
@@ -302,6 +311,7 @@ function EvidenceAttachmentField({
   onLinkChange,
   uploadTarget,
   deferredTarget,
+  onBusyChange,
 }: {
   id: (name: string) => string;
   error?: string;
@@ -309,6 +319,7 @@ function EvidenceAttachmentField({
   onLinkChange: (link: string) => void;
   uploadTarget?: EvidenceUploadTarget;
   deferredTarget?: DeferredEvidenceTarget;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const [mode, setMode] = useState<EvidenceMode>("document");
   const [uploading, setUploading] = useState(false);
@@ -327,6 +338,7 @@ function EvidenceAttachmentField({
     }
     if (!uploadTarget) return;
     setUploading(true);
+    onBusyChange?.(true);
     setUploadError(null);
     setUploadedName(null);
     try {
@@ -352,9 +364,18 @@ function EvidenceAttachmentField({
       uploadTarget.onUploaded(result.url);
       setUploadedName(result.name || file.name);
     } catch (cause) {
-      setUploadError(cause instanceof Error ? cause.message : String(cause));
+      // A dropped connection surfaces as a bare "Failed to fetch", which reads as
+      // though the server rejected the file. It did not — the request never
+      // finished, so nothing reached Drive and column Q is unchanged.
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setUploadError(
+        /failed to fetch|networkerror|load failed/i.test(message)
+          ? "Koneksi terputus sebelum file selesai diunggah. File belum masuk Drive — pilih filenya lagi dan tunggu sampai muncul keterangan berhasil."
+          : message,
+      );
     } finally {
       setUploading(false);
+      onBusyChange?.(false);
     }
   };
 

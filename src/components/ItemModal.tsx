@@ -64,6 +64,10 @@ export function ItemModal({
   );
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, startTransition] = useTransition();
+  // Saving closes the dialog and refreshes the page, which cancels any request
+  // still in flight. An evidence upload caught by that never reaches Drive and
+  // never reaches column Q, so the dialog stays put until the upload lands.
+  const [evidenceBusy, setEvidenceBusy] = useState(false);
 
   // What the form held when it opened, so "unsaved" means actually changed rather
   // than merely visited.
@@ -98,19 +102,33 @@ export function ItemModal({
     <Modal
       title={isNew ? "Tambah Item Aksi" : `Ubah Langkah ${item.stepNo}`}
       subtitle={`${iapId} — ${caseTitle}`}
-      onClose={onClose}
-      dirty={dirty}
+      onClose={evidenceBusy ? () => {} : onClose}
+      dirty={dirty || evidenceBusy}
       testId="item-modal"
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={pending}>
+          {evidenceBusy ? (
+            <p
+              className="mr-auto text-[11.5px] text-accent"
+              role="status"
+              data-testid="item-evidence-busy"
+            >
+              Menunggu upload evidence selesai…
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className="btn"
+            onClick={onClose}
+            disabled={pending || evidenceBusy}
+          >
             Batal
           </button>
           <button
             type="button"
             className="btn btn-primary"
             onClick={submit}
-            disabled={pending}
+            disabled={pending || evidenceBusy}
             data-testid="item-save"
           >
             {pending ? "Menyimpan…" : "Simpan"}
@@ -164,6 +182,7 @@ export function ItemModal({
               }
             : undefined
         }
+        onEvidenceBusyChange={setEvidenceBusy}
       />
 
       <p className="mt-3 text-[11px] text-faint">
