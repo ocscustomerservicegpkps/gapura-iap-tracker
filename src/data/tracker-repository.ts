@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { todayInJakarta } from "@/domain/dates";
+import { viewOnlyLink } from "@/domain/evidence";
 import { withHealedOverdue } from "@/domain/overdue";
 import {
   itemToRow,
@@ -133,7 +134,7 @@ function applyStep(
       progress: input.progress,
       actualDate: input.actualDate,
       evidence: input.evidence,
-      evidenceLink: input.evidenceLink,
+      evidenceLink: viewOnlyLinks(input.evidenceLink).join("\n"),
     },
     today,
   );
@@ -179,11 +180,21 @@ export async function updateStep(
  * from the UI; that is done in the spreadsheet.
  */
 function mergeEvidenceLinks(stored: string, submitted: string): string {
-  const merged = safeLinks(stored);
-  for (const link of safeLinks(submitted)) {
+  const merged = viewOnlyLinks(stored);
+  for (const link of viewOnlyLinks(submitted)) {
     if (!merged.includes(link)) merged.push(link);
   }
   return merged.join("\n");
+}
+
+/**
+ * Every URL on its way into column Q, in the form that opens read-only. Rewriting
+ * what is already stored as well as what is being added means a row that still
+ * holds an old `/edit` link is repaired the next time it is saved, and that the
+ * de-duplication above compares the two in the same form.
+ */
+function viewOnlyLinks(raw: string): string[] {
+  return safeLinks(raw).map(viewOnlyLink);
 }
 
 /** Store an uploaded Drive file's share link without rewriting any other cell. */
@@ -192,10 +203,11 @@ export async function appendEvidenceLinks(
   rawLink: string,
 ): Promise<MutationResult> {
   if (keys.length === 0) return failure("steps", "Pilih minimal satu langkah.");
-  const evidenceLink = safeLink(rawLink);
-  if (!evidenceLink || evidenceLink.includes("\n")) {
+  const cleanLink = safeLink(rawLink);
+  if (!cleanLink || cleanLink.includes("\n")) {
     return failure("evidenceLink", "Link evidence baru harus satu URL http/https yang valid.");
   }
+  const evidenceLink = viewOnlyLink(cleanLink);
 
   const rows = await loadPositioned();
   const updates: RangeUpdate[] = [];
@@ -204,7 +216,7 @@ export async function appendEvidenceLinks(
     if (!target) {
       return failure("form", `Item ${key.iapId} langkah ${key.stepNo} tidak ditemukan.`);
     }
-    const existing = safeLink(target.item.evidenceLink);
+    const existing = viewOnlyLinks(target.item.evidenceLink).join("\n");
     updates.push({
       range: rowRange(target.rowNumber, "Q", "Q"),
       values: [[existing ? `${existing}\n${evidenceLink}` : evidenceLink]],

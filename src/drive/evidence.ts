@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { google, type drive_v3 } from "googleapis";
 import {
   evidenceFileName,
+  viewOnlyLink,
   type EvidenceFileIdentity,
 } from "@/domain/evidence";
 import type { ItemKey } from "@/domain/types";
@@ -160,11 +161,15 @@ export async function uploadEvidenceFile(
 
   await shareByLink(drive, fileId);
 
+  // Drive answers with an `/edit` URL even for a plain uploaded .docx. Hand back
+  // the read-only form, so what the dialog reports and what reaches column Q are
+  // the same link and neither of them opens an editor.
   return {
     fileId,
-    webViewLink:
+    webViewLink: viewOnlyLink(
       uploaded.data.webViewLink ??
-      `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`,
+        `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`,
+    ),
   };
 }
 
