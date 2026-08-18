@@ -14,6 +14,8 @@ import {
 
 export type EvidenceKind = "photo" | "document";
 
+export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
+
 const PHOTO_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -95,6 +97,12 @@ export function validateEvidenceFile(
   kind: EvidenceKind,
 ): string | null {
   if (file.size === 0) return "File evidence kosong.";
+  // The whole file is buffered in memory before it reaches Drive, so the ceiling is
+  // checked here against the actual body rather than against a Content-Length header
+  // — that header counts the multipart envelope too and was rejecting valid files.
+  if (file.size > MAX_EVIDENCE_BYTES) {
+    return "Ukuran file evidence maksimal 10 MB.";
+  }
   const allowedTypes = kind === "photo" ? PHOTO_TYPES : DOCUMENT_TYPES;
   const allowedExtensions =
     kind === "photo" ? PHOTO_EXTENSIONS : DOCUMENT_EXTENSIONS;

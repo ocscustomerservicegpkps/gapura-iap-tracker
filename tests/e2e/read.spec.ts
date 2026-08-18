@@ -39,8 +39,9 @@ test.describe("membaca tracker", () => {
 
     for (const [iapId, total] of expected) {
       const row = page.getByTestId(`case-row-${iapId}`);
-      // The ID cell is a row header (`th`), so Total is the first `td`.
-      await expect(row.locator("td").nth(1)).toHaveText(String(total));
+      // The ID cell is a row header (`th`), so the `td`s run Judul, Link
+      // Evidence, then Total.
+      await expect(row.locator("td").nth(2)).toHaveText(String(total));
     }
   });
 
