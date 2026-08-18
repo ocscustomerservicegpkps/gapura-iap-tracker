@@ -17,6 +17,43 @@ export type EvidenceKind = "photo" | "document";
 
 export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
 
+/**
+ * Whether this deployment can accept a file at all. The credential lookups below
+ * throw messages written for whoever is configuring the server — naming env vars
+ * and pointing at `.env.example` — which is the wrong thing to put in front of
+ * someone who is only trying to attach a document. Checked up front so the caller
+ * can say what is actually true: uploads are off here, links still work.
+ */
+export function evidenceUploadStatus(): { ready: boolean; missing: string[] } {
+  const missing: string[] = [];
+  if (!process.env.GOOGLE_DRIVE_EVIDENCE_FOLDER_ID?.trim()) {
+    missing.push("GOOGLE_DRIVE_EVIDENCE_FOLDER_ID");
+  }
+
+  const oauth = {
+    GOOGLE_DRIVE_OAUTH_CLIENT_ID: process.env.GOOGLE_DRIVE_OAUTH_CLIENT_ID?.trim(),
+    GOOGLE_DRIVE_OAUTH_CLIENT_SECRET:
+      process.env.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET?.trim(),
+    GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN:
+      process.env.GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN?.trim(),
+  };
+  const oauthSet = Object.values(oauth).filter(Boolean).length;
+
+  // Either a complete OAuth trio, or a service account to fall back on. A partial
+  // trio is always wrong, so report exactly which pieces are absent.
+  if (oauthSet > 0 && oauthSet < 3) {
+    for (const [name, value] of Object.entries(oauth)) {
+      if (!value) missing.push(name);
+    }
+  } else if (oauthSet === 0 && !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim()) {
+    missing.push("GOOGLE_DRIVE_OAUTH_CLIENT_ID");
+    missing.push("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET");
+    missing.push("GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN");
+  }
+
+  return { ready: missing.length === 0, missing };
+}
+
 const PHOTO_TYPES = new Set([
   "image/jpeg",
   "image/png",

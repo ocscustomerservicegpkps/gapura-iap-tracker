@@ -6,6 +6,7 @@ import {
 import { todayInJakarta } from "@/domain/dates";
 import {
   deleteEvidenceFile,
+  evidenceUploadStatus,
   type EvidenceKind,
   uploadEvidenceFile,
   validateEvidenceFile,
@@ -24,6 +25,23 @@ export async function POST(
   if (isMemoryTransport()) {
     return Response.json(
       { error: "Upload Google Drive tidak tersedia pada mode data offline." },
+      { status: 503 },
+    );
+  }
+
+  // The env vars belong to whoever runs the server, not to the person attaching a
+  // document, so the reply says what they can do about it and the detail goes to
+  // the server log where an operator will find it.
+  const driveStatus = evidenceUploadStatus();
+  if (!driveStatus.ready) {
+    console.error(
+      `Evidence upload is not configured on this deployment. Missing: ${driveStatus.missing.join(", ")}`,
+    );
+    return Response.json(
+      {
+        error:
+          "Upload file belum aktif di server ini karena koneksi Google Drive belum dikonfigurasi. Gunakan pilihan Link Evidence untuk sementara, dan minta admin melengkapi konfigurasi Google Drive.",
+      },
       { status: 503 },
     );
   }

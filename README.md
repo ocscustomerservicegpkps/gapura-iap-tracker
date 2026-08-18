@@ -192,6 +192,15 @@ Deploys to Vercel as-is. Set `GOOGLE_SHEETS_SPREADSHEET_ID`,
 `GOOGLE_DRIVE_EVIDENCE_FOLDER_ID` as environment variables, and
 leave `SHEETS_TRANSPORT` unset.
 
+Evidence uploads need three more: `GOOGLE_DRIVE_OAUTH_CLIENT_ID`,
+`GOOGLE_DRIVE_OAUTH_CLIENT_SECRET` and `GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN`,
+obtained with `npm run authorize-drive` as the folder's owner. The service
+account can reach Sheets, but it has no Drive storage quota of its own, so an
+upload to a My Drive folder must go through the owner's OAuth credentials. Without
+them the dashboard still runs and Link Evidence still works — the file pickers
+return "Upload file belum aktif di server ini". `.env.local` is local only and is
+never pushed, so every one of these has to be set on the host separately.
+
 **The deployed URL has no authentication** — a deliberate, recorded decision. Any
 visitor can read every action item and can create, edit and delete cases and steps.
 Note that the tracker's `pembinaan` rows name individual employees in a disciplinary
