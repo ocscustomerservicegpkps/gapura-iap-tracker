@@ -1,5 +1,4 @@
-import { revalidatePath, revalidateTag } from "next/cache";
-import { TRACKER_TAG } from "@/data/tracker-repository";
+import { revalidatePath } from "next/cache";
 import { isMemoryTransport, resetMemoryTransport } from "@/sheets";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +13,6 @@ export async function POST() {
     return new Response("Not found", { status: 404 });
   }
   resetMemoryTransport();
-  revalidateTag(TRACKER_TAG);
   revalidatePath("/");
   return Response.json({ ok: true });
 }

@@ -1,10 +1,7 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
-import {
-  CONTEXT_TAG,
-  saveContext,
-} from "@/data/case-context";
+import { revalidatePath } from "next/cache";
+import { saveContext } from "@/data/case-context";
 import {
   createCase,
   createStep,
@@ -13,7 +10,6 @@ import {
   deleteStep,
   updateCaseMeta,
   updateStep,
-  TRACKER_TAG,
   type MutationResult,
 } from "@/data/tracker-repository";
 import type { ItemKey } from "@/domain/types";
@@ -25,12 +21,11 @@ import {
 } from "@/domain/validate";
 
 /**
- * Busts the read cache so the author sees their own change straight away. Every
- * mutation goes through here; nothing else revalidates.
+ * Drops the rendered page so the author sees their own change straight away. The
+ * sheet reads themselves are not cached across requests. Every mutation goes
+ * through here; nothing else revalidates.
  */
 function refresh(): void {
-  revalidateTag(TRACKER_TAG);
-  revalidateTag(CONTEXT_TAG);
   revalidatePath("/");
 }
 

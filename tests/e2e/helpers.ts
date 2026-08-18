@@ -40,6 +40,25 @@ export const CTX = {
 
 export type SheetRow = string[];
 
+/**
+ * Write a cell straight into the sheet, bypassing the app entirely — someone
+ * typing into the spreadsheet in another tab. Nothing is revalidated, so what the
+ * dashboard shows afterwards is what it worked out for itself.
+ */
+export async function editSheetCell(
+  request: APIRequestContext,
+  range: string,
+  value: string,
+): Promise<void> {
+  const response = await request.post("/api/test/write", {
+    data: { range, value },
+  });
+  expect(
+    response.ok(),
+    "write endpoint requires SHEETS_TRANSPORT=memory",
+  ).toBeTruthy();
+}
+
 /** Restore the sheet to the 66-row fixture. */
 export async function resetSheet(request: APIRequestContext): Promise<void> {
   const response = await request.post("/api/test/reset");

@@ -5,8 +5,9 @@ import { todayInJakarta } from "@/domain/dates";
 import { deriveItems } from "@/domain/overdue";
 
 /**
- * Rendered per request so "today" is always current; the Sheets reads underneath are
- * what carry the 60-second cache, keeping API usage flat no matter the traffic.
+ * Rendered per request so "today" is always current and so the Sheets reads
+ * underneath run again each time. That keeps the dashboard honest about a
+ * spreadsheet someone edited by hand, at the cost of one read per page view.
  */
 export const dynamic = "force-dynamic";
 

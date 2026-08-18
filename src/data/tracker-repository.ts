@@ -1,6 +1,6 @@
 import "server-only";
 
-import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import { todayInJakarta } from "@/domain/dates";
 import { withHealedOverdue } from "@/domain/overdue";
 import {
@@ -16,14 +16,9 @@ import { getTransport } from "@/sheets";
 import { TRACKER_TAB } from "@/sheets/config";
 import type { RangeUpdate } from "@/sheets/transport";
 
-export const TRACKER_TAG = "tracker";
-
 /** Row 1 is the header and is never touched. */
 const FIRST_DATA_ROW = 2;
 const DATA_RANGE = `${TRACKER_TAB}!A${FIRST_DATA_ROW}:W`;
-
-/** Cache window. One Sheets read serves every visitor inside it. */
-const REVALIDATE_SECONDS = 60;
 
 export type MutationResult = { ok: true } | { ok: false; errors: FieldErrors };
 
@@ -62,14 +57,16 @@ async function readItemsUncached(): Promise<ActionItem[]> {
 }
 
 /**
- * All action items, cached for {@link REVALIDATE_SECONDS}. Mutations bust the tag,
- * so an author sees their own edit at once while a change made directly in the
- * spreadsheet shows up within about a minute.
+ * All action items, read fresh for each page render and memoised only for the
+ * duration of that render, so a single render still costs a single Sheets read.
+ *
+ * A time-based cache used to sit here instead. Mutations made through the app
+ * busted its tag, but an edit typed straight into the spreadsheet has no way to —
+ * so clearing column Q by hand left the deleted links on screen for over a minute,
+ * and adding one by hand did not show up either. The spreadsheet is the record;
+ * the dashboard must not disagree with it.
  */
-export const readItems = unstable_cache(readItemsUncached, ["tracker-items"], {
-  revalidate: REVALIDATE_SECONDS,
-  tags: [TRACKER_TAG],
-});
+export const readItems = cache(readItemsUncached);
 
 function rowRange(rowNumber: number, from = "A", to = "Q"): string {
   return `${TRACKER_TAB}!${from}${rowNumber}:${to}${rowNumber}`;

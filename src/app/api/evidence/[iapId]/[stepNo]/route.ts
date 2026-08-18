@@ -1,8 +1,7 @@
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import {
   readItems,
   appendEvidenceLinks,
-  TRACKER_TAG,
 } from "@/data/tracker-repository";
 import { todayInJakarta } from "@/domain/dates";
 import {
@@ -101,7 +100,6 @@ export async function POST(
       );
     }
 
-    revalidateTag(TRACKER_TAG);
     revalidatePath("/");
     return Response.json({
       url: uploaded.webViewLink,

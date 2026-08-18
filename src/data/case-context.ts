@@ -1,6 +1,6 @@
 import "server-only";
 
-import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import {
   contextToRow,
   hasContext,
@@ -10,14 +10,11 @@ import {
 import { getTransport } from "@/sheets";
 import { TRACKER_TAB } from "@/sheets/config";
 
-export const CONTEXT_TAG = "case-context";
-
 const FIRST_DATA_ROW = 2;
 /** B is the case ID; context is stored after Q in R:W. */
 const DATA_RANGE = `${TRACKER_TAB}!B${FIRST_DATA_ROW}:W`;
 /** R relative to a range beginning at B. */
 const CONTEXT_OFFSET = 16;
-const REVALIDATE_SECONDS = 60;
 
 interface PositionedContext {
   context: CaseContext;
@@ -50,10 +47,8 @@ async function readAllUncached(): Promise<Record<string, CaseContext>> {
   return byId;
 }
 
-export const readContexts = unstable_cache(readAllUncached, ["case-context"], {
-  revalidate: REVALIDATE_SECONDS,
-  tags: [CONTEXT_TAG],
-});
+/** Read fresh per render, for the same reason {@link readItems} is. */
+export const readContexts = cache(readAllUncached);
 
 function rowRange(rowNumber: number): string {
   return `${TRACKER_TAB}!R${rowNumber}:W${rowNumber}`;
