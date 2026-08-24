@@ -185,6 +185,11 @@ export async function uploadEvidenceFile(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (/invalid_grant/i.test(message)) {
+      throw new Error(
+        "Otorisasi Google Drive sudah tidak berlaku. Admin perlu membuat GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN baru dengan Client ID dan Client Secret yang sama, memperbarui environment Vercel Production, lalu melakukan redeploy.",
+      );
+    }
     if (/storage quota|storageQuotaExceeded/i.test(message)) {
       throw new Error(
         "Service account tidak memiliki kuota Google Drive. Konfigurasikan OAuth akun pemilik folder melalui GOOGLE_DRIVE_OAUTH_CLIENT_ID, GOOGLE_DRIVE_OAUTH_CLIENT_SECRET, dan GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN.",
