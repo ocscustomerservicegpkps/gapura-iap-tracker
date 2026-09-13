@@ -1,3 +1,7 @@
+import { sameOrigin } from "@/lib/security";
+import { limitedFormData, UploadBodyTooLarge } from "@/lib/upload-body";
+import { matchesEvidenceSignature } from "@/domain/evidence-file";
+import { MAX_EVIDENCE_BYTES } from "@/drive/evidence";
 import { revalidatePath } from "next/cache";
 import {
   readItems,
@@ -11,6 +15,7 @@ import {
   uploadEvidenceFile,
   validateEvidenceFile,
 } from "@/drive/evidence";
+import { canAccessCase } from "@/lib/case-access";
 import { isMemoryTransport } from "@/sheets";
 
 export const dynamic = "force-dynamic";
@@ -51,9 +56,17 @@ export async function POST(
   if (!iapId.trim() || !Number.isInteger(stepNo) || stepNo < 1) {
     return Response.json({ error: "Identitas item evidence tidak valid." }, { status: 400 });
   }
+  // Uploading writes a link into the case's rows, so it needs the same branch check
+  // the editing dialog behind it went through.
+  if (!(await canAccessCase(iapId))) {
+    return Response.json(
+      { error: "Anda tidak memiliki akses ke kasus ini." },
+      { status: 403 },
+    );
+  }
 
   try {
-    const form = await request.formData();
+    const form = await limitedFormData(request, MAX_EVIDENCE_BYTES + 128 * 1024);
     const kind = form.get("kind");
     const file = form.get("file");
     if (kind !== "photo" && kind !== "document") {
@@ -66,6 +79,11 @@ export async function POST(
     const validationError = validateEvidenceFile(file, kind as EvidenceKind);
     if (validationError) {
       return Response.json({ error: validationError }, { status: 400 });
+    }
+
+    const extension = file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase();
+    if (!matchesEvidenceSignature(new Uint8Array(await file.arrayBuffer()), extension)) {
+      return Response.json({ error: "Isi file tidak sesuai dengan format evidence." }, { status: 400 });
     }
 
     const requestedStepNos = parseStepNos(form.get("stepNos"), stepNo);
@@ -110,7 +128,7 @@ export async function POST(
       try {
         await deleteEvidenceFile(uploaded.fileId);
       } catch (rollbackError) {
-        console.error("Failed to roll back orphaned evidence file", rollbackError);
+        console.error("Failed to roll back orphaned evidence file");
       }
       return Response.json(
         { error: Object.values(saved.errors)[0] ?? "Gagal menyimpan link evidence." },
@@ -125,9 +143,12 @@ export async function POST(
       stepNos: requestedStepNos,
     });
   } catch (error) {
-    console.error("Evidence upload failed", error);
+    if (error instanceof UploadBodyTooLarge) {
+      return Response.json({ error: "Ukuran upload terlalu besar. Maksimal file 4 MB." }, { status: 413 });
+    }
+    console.error("Evidence upload failed");
     return Response.json(
-      { error: `Gagal mengunggah evidence: ${messageOf(error)}` },
+      { error: "Gagal mengunggah evidence. Silakan coba lagi atau hubungi admin." },
       { status: 500 },
     );
   }
@@ -156,44 +177,4 @@ function parseStepNos(value: FormDataEntryValue | null, fallback: number): numbe
   } catch {
     return null;
   }
-}
-
-function sameOrigin(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    const originUrl = new URL(origin);
-    const forwardedHost = request.headers
-      .get("x-forwarded-host")
-      ?.split(",")[0]
-      ?.trim();
-    const candidateHosts = [
-      request.headers.get("host")?.trim(),
-      forwardedHost,
-      new URL(request.url).host,
-    ].filter((host): host is string => Boolean(host));
-
-    return candidateHosts.some(
-      (candidate) =>
-        candidate === originUrl.host ||
-        sameLoopbackHost(candidate, originUrl.host),
-    );
-  } catch {
-    return false;
-  }
-}
-
-function sameLoopbackHost(left: string, right: string): boolean {
-  const parse = (host: string) => {
-    const url = new URL(`http://${host}`);
-    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-    return { loopback, port: url.port || "80" };
-  };
-  const a = parse(left);
-  const b = parse(right);
-  return a.loopback && b.loopback && a.port === b.port;
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

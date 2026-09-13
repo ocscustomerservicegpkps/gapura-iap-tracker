@@ -13,7 +13,7 @@ import {
  * a rendering engine bundled into the app. It costs no dependency, it prints the fonts
  * the reader actually has, and the page is readable on its own if printing is declined.
  */
-export function renderPrintHtml(doc: IapDocument): string {
+export function renderPrintHtml(doc: IapDocument, nonce: string): string {
   const header = doc.header.length
     ? `<table class="meta">${doc.header
         .map(
@@ -70,7 +70,8 @@ export function renderPrintHtml(doc: IapDocument): string {
   @media print { body { padding: 0; max-width: none; } }
 </style>
 </head>
-<body onload="window.print()">
+<body>
+<script nonce="${escapeHtml(nonce)}">window.addEventListener("load", () => window.print());</script>
 <h1>${escapeHtml(DOCUMENT_TITLE)}</h1>
 <p class="subtitle">${escapeHtml(doc.subtitle)}</p>
 ${header}

@@ -10,7 +10,7 @@ const GOOGLE_EDITORS = ["document", "spreadsheets", "presentation", "drawings"];
  *
  * Rewrite Google's own URLs to their viewer and leave everything else alone — a
  * link to some other system is not ours to rewrite. Sharing is a separate control:
- * uploads are granted reader-by-link, which this cannot and does not replace.
+ * uploads inherit folder permissions; a viewer URL does not grant access.
  */
 export function viewOnlyLink(rawLink: string): string {
   let url: URL;

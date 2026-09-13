@@ -84,7 +84,8 @@ export function safeLinks(raw: string): string[] {
     .filter((value) => {
       try {
         const url = new URL(value);
-        return url.protocol === "http:" || url.protocol === "https:";
+        return (url.protocol === "http:" || url.protocol === "https:") &&
+          !url.username && !url.password && !/[\x00-\x1f]/.test(value);
       } catch {
         return false;
       }

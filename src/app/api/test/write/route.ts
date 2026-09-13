@@ -1,3 +1,4 @@
+import { isOfflineAuth } from "@/lib/offline";
 import { getTransport, isMemoryTransport, TRACKER_TAB } from "@/sheets";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
  * deployment that talks to a real spreadsheet.
  */
 export async function POST(request: Request) {
-  if (!isMemoryTransport()) {
+  if (!isOfflineAuth() || !isMemoryTransport()) {
     return new Response("Not found", { status: 404 });
   }
 

@@ -54,6 +54,10 @@
   --color-mid-bar: oklch(60% 0.13 160);
 
   --radius-card: 10px;
+
+  /* Height of the sticky account bar. The tracker table's sticky header parks
+     directly beneath it, so the two are defined against one value. */
+  --app-header-h: 52px;
 }
 
 ::selection {

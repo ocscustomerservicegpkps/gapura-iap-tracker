@@ -16,6 +16,8 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Dasbor Monitoring Improvement Action Plan",
   description:

@@ -4,7 +4,8 @@ A single-page Next.js dashboard over PT Gapura Angkasa's **Improvement Action Pl
 tracker. It reads and writes the existing Google Sheet directly — the spreadsheet
 stays the database, this replaces it as the working surface.
 
-Indonesian throughout, light theme only, no authentication.
+Indonesian throughout, light theme only. Sign-in, per-branch access and user approval
+run on Supabase — see [Accounts, branches and approval](#accounts-branches-and-approval).
 
 ## What it does that the spreadsheet could not
 
@@ -66,13 +67,136 @@ restart the application afterward so the new credential is loaded.
 Drive filenames follow `ID_Tanggal_Stasiun_Langkah-N_Nama-Asli`, using the target
 date and station stored on that Tracker item.
 
+## Accounts, branches and approval
+
+Authentication, user records and the branch restriction live in **Supabase**. The
+tracker data itself stays in Google Sheets — Supabase holds accounts, not IAP rows.
+
+### Roles
+
+| Role    | Sees                       | Can also                                    |
+| ------- | -------------------------- | ------------------------------------------- |
+| `admin` | every branch               | approve, edit, deactivate and delete users  |
+| `user`  | only their own branch      | —                                           |
+
+A user's branch is an IATA station code (`CGK`, `DPS`, `KNO`, …) or `PUSAT` for the
+head office (KPS). The dropdown offers the 39 hub branches, grouped `HUB 1`–`HUB 5`
+the way the operation is organised; the list lives in `src/domain/branches.ts`.
+`PUSAT` is the one value that is not restricted to a single station,
+and it is independent of the admin role: a head-office account can see everything
+without being able to manage users.
+
+Every account starts `pending` and cannot sign in until an admin approves it at
+`/admin/users`. Registration deliberately cannot set its own role or status — the
+database trigger that creates the profile ignores both, so nobody can register
+themselves straight into admin.
+
+### Which rows a branch sees
+
+A row belongs to whatever stations its `Stasiun / Pihak Terkait` cell (column D) names.
+That cell is prose, not a code — `Scoot - Stasiun CGK & KNO` belongs to two branches,
+and `PT Gapura Angkasa - Stasiun CGK & Surabaya` names one station by code and the
+other by city. `src/domain/branches.ts` resolves both forms, so no new column and no
+backfill were needed.
+
+`npm run check:branches` asserts that against the exact station strings the live
+Tracker holds today. Run it if column D gains a new spelling; a station that stops
+resolving silently hides those rows from that branch.
+
+Filtering happens on the server, in `src/app/page.tsx` — other branches' rows are never
+sent to the browser. The server actions and the export and evidence routes re-check
+access themselves through `src/lib/case-access.ts`, because each of them is a public
+endpoint that takes an IAP id straight from the caller.
+
+### Setting it up
+
+1. Create a Supabase project and put its URL and publishable key in `.env.local`:
+
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
+   ```
+
+   The same two values go into the Vercel project environment. The application never
+   uses the service role key, so that one is never deployed.
+
+2. Register the first account through `/register`, then promote it by hand — there is
+   no admin yet to approve it:
+
+   ```sql
+   update public.profiles
+   set role = 'admin', status = 'active'
+   where email = 'you@example.com';
+   ```
+
+   Every later account is approved from `/admin/users`.
+
+3. Optionally seed three demo accounts, one per access level — a branch user
+   (`CGK`), a head-office user (`PUSAT`), and an admin:
+
+   ```bash
+   DEMO_PASSWORD='pick-one' npm run seed-demo-users -- --apply
+   ```
+
+   The password is passed through the environment so it never lands in the
+   repository; these accounts can read real incident data. Without `--apply` the
+   script only lists what it would create.
+
+   This needs `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (Supabase → Project
+   Settings → API keys → service_role). It is the only thing in the project that
+   uses that key — the application never does, so it does not belong in the Vercel
+   environment.
+
+   The accounts are created through the Admin API, already confirmed, so no mail is
+   sent. Note that `.test` addresses are non-routable by design: password recovery
+   can never reach them, so they cannot be used to exercise `/forgot-password`.
+
+### Password recovery over Gmail SMTP
+
+Supabase's built-in mailer is rate-limited to a handful of messages an hour and is not
+meant for real users, so point the project at Gmail. In the Supabase dashboard under
+**Authentication → Emails → SMTP Settings**, enable custom SMTP and enter:
+
+| Field           | Value                                       |
+| --------------- | ------------------------------------------- |
+| Host            | `smtp.gmail.com`                            |
+| Port            | `465`                                       |
+| Username        | the full Gmail address                      |
+| Password        | a Google **App Password**, not the password |
+| Sender email    | the same Gmail address                      |
+| Sender name     | e.g. `Dasbor Monitoring IAP`                |
+
+The App Password comes from the Google account's own security settings and requires
+2-Step Verification to be on; a normal account password will be refused. If the Gmail
+account belongs to a Workspace domain, that domain must also allow SMTP relay.
+
+Then set **Authentication → URL Configuration → Site URL** to the deployed origin and
+add `https://your-app.example.com/auth/callback` to the redirect allow-list. Every link
+Supabase emails — address confirmation and password recovery both — comes back through
+that one route, which trades the code for a session and forwards on.
+
+Without this, `/forgot-password` still reports success (it deliberately answers the same
+way whether or not an address is registered) but no mail arrives.
+
+### Local fixture mode
+
+Offline authentication requires both `SHEETS_TRANSPORT=memory` and
+`ENABLE_OFFLINE_TEST_MODE=1`, with Google service-account credentials and the Drive
+refresh token removed from the process. It is always disabled on Vercel. Production
+also refuses an accidental memory transport. The test servers explicitly clear the
+Google credentials, and `/api/test/*` is absent outside this isolated local mode.
+
+Authentication email redirects use the application setting `APP_URL`, with the
+operator-controlled `VERCEL_PROJECT_PRODUCTION_URL` as fallback. They never use a
+request's Host or forwarded headers. Upload requests require an exact matching Origin.
+
 ## Testing
 
 ```bash
 npm test
 ```
 
-Builds the app and runs the Playwright suite (73 tests) against it. Three servers are
+Builds the app and runs the Playwright suite (95 tests) against it. Three servers are
 started automatically:
 
 | Project        | Clock pinned to             | Covers                                          |
@@ -87,7 +211,7 @@ inheriting the host.
 
 Tests assert only on what a user sees and on what lands in the sheet; they read the
 stored grid through `/api/test/snapshot` and reset it through `/api/test/reset`. Both
-endpoints exist **only when the in-memory transport is bound**, so a deployment can
+endpoints exist **only in explicitly enabled, isolated local fixture mode**, so a deployment can
 never expose a reset button.
 
 ### Running against a real spreadsheet — not yet possible
@@ -119,7 +243,9 @@ src/domain/      pure: dates, row mapping, overdue, aggregation, filtering, vali
 src/sheets/      the four-operation transport, plus its Google and in-memory bindings
 src/data/        two repositories — action items keyed on (ID IAP, No Langkah), and
                  case context keyed on ID IAP
-src/app/         page (Server Component read) and actions.ts (Server Actions write)
+src/app/         page (Server Component read) and actions.ts (Server Actions write),
+                 plus the auth pages and the admin user management screen
+src/lib/         Supabase clients, the signed-in profile, and the per-case branch check
 src/components/  the dashboard UI
 scripts/         one-off maintenance against a live spreadsheet
 tests/e2e/       the whole test suite
@@ -209,3 +335,28 @@ context.
 **Rotate the service account key.** `iap-gapura-01aab7d20653.json` sat unencrypted in
 `~/Downloads`; it is gitignored here and must never be committed, but it should be
 replaced rather than merely hidden.
+
+## Application security audit
+
+See [the audit report](security_best_practices_report.md) for findings, fixed issues,
+and remaining limitations. The stack remains Google Sheets, Supabase and Vercel.
+This audit does not change third-party account settings or access policies.
+
+- Every sensitive page, export and mutation verifies account status and branch access
+  on the server. Whole-case operations require access to every case row.
+- A branch user can create or move case metadata only to their own single branch.
+  Shared-branch assignments are managed by admin/head office.
+- Responses carrying application data use `private, no-store`. Executable scripts
+  require a fresh CSP nonce; frames and plugin content are blocked.
+- Evidence files are limited to **4 MiB** (with 128 KiB for multipart overhead), checked
+  by extension, MIME and file signature, and no longer made public by application code.
+  Signature checks do not constitute malware scanning.
+- Password recovery returns the same notice even when the provider reports an error.
+  Provider errors and credential-bearing error objects are not shown to users.
+
+Run `npm run test:security` for an isolated build and security probes against a local
+simulated authentication service. It covers forged/anonymous sessions, pending and
+inactive accounts, cross-branch exports and actions, admin-action access, CSRF,
+redirect tricks, request limits and malformed files/forms. Ports 3200 and 3202 must
+be available. `npm test` includes browser probes for stored XSS, unsafe evidence links,
+CSP enforcement and upload Origin validation. Tests use fixture data only.

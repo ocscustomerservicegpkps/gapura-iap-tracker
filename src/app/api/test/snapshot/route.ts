@@ -1,3 +1,4 @@
+import { isOfflineAuth } from "@/lib/offline";
 import { CONTEXT_TAB, isMemoryTransport, memorySnapshot, TRACKER_TAB } from "@/sheets";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ const READABLE = [TRACKER_TAB, CONTEXT_TAB];
  * spreadsheet rather than on what the page happens to show.
  */
 export async function GET(request: Request) {
-  if (!isMemoryTransport()) {
+  if (!isOfflineAuth() || !isMemoryTransport()) {
     return new Response("Not found", { status: 404 });
   }
   const tab = new URL(request.url).searchParams.get("tab") ?? TRACKER_TAB;

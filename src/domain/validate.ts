@@ -80,6 +80,10 @@ function validateStep(
   errors: FieldErrors,
   prefix = "",
 ): NormalisedStep | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || !checkPayload(raw)) {
+    errors[prefix + "form"] = "Data tidak valid atau terlalu panjang.";
+    return null;
+  }
   const key = (name: string) => `${prefix}${name}`;
 
   const step = text(raw.step);
@@ -160,7 +164,9 @@ function validateCaseFields(
   raw: Record<string, unknown>,
   errors: FieldErrors,
 ): { iapId: string; title: string; station: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || !checkPayload(raw)) errors.form = "Data tidak valid atau terlalu panjang.";
   const iapId = text(raw.iapId);
+  if (iapId.length > 100 || /[\x00-\x1f]/.test(iapId)) errors.iapId = "ID IAP tidak valid atau terlalu panjang.";
   const title = text(raw.title);
   if (!iapId) errors.iapId = "ID IAP wajib diisi.";
   if (!title) errors.title = "Judul IAP / Kasus wajib diisi.";
@@ -195,9 +201,11 @@ export function validateCaseInput(
   raw: Record<string, unknown>,
 ): Validated<CaseInput> {
   const errors: FieldErrors = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || !checkPayload(raw)) return { ok: false, errors: { form: "Data tidak valid atau terlalu panjang." } };
   const { iapId, title, station } = validateCaseFields(raw, errors);
 
   const rawSteps = Array.isArray(raw.steps) ? raw.steps : [];
+  if (rawSteps.length > 100) return { ok: false, errors: { steps: "Maksimal 100 langkah per kasus." } };
   if (rawSteps.length === 0) {
     errors.steps = "Minimal satu langkah diperlukan.";
     return { ok: false, errors };
@@ -232,6 +240,7 @@ export function validateCaseMetaInput(
   raw: Record<string, unknown>,
 ): Validated<CaseMetaInput> {
   const errors: FieldErrors = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || !checkPayload(raw)) return { ok: false, errors: { form: "Data tidak valid atau terlalu panjang." } };
   const value = validateCaseFields(raw, errors);
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return {
@@ -243,4 +252,15 @@ export function validateCaseMetaInput(
 /** First message, for surfacing a single-line failure. */
 export function firstError(errors: FieldErrors): string {
   return Object.values(errors)[0] ?? "Data tidak valid.";
+}
+
+/** Keep individual cells and nested forms bounded before normalisation/Sheets writes. */
+function checkPayload(raw: unknown, depth = 0): boolean {
+  if (depth > 5) return false;
+  if (raw == null || typeof raw === "number" || typeof raw === "boolean") return true;
+  if (typeof raw === "string") return raw.length <= 20000 && !raw.includes("\0");
+  if (Array.isArray(raw)) return raw.length <= 100 && raw.every(value => checkPayload(value, depth + 1));
+  if (typeof raw !== "object") return false;
+  const entries = Object.entries(raw);
+  return entries.length <= 50 && entries.every(([key, value]) => key.length <= 100 && checkPayload(value, depth + 1));
 }

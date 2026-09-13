@@ -1,4 +1,5 @@
 import "server-only";
+import { isLocalFixtureMode } from "@/lib/offline";
 
 import contextFixture from "@/fixtures/context-fixture.json";
 import fixture from "@/fixtures/tracker-fixture.json";
@@ -32,8 +33,14 @@ type TransportKind = "google" | "memory";
 
 export function transportKind(): TransportKind {
   const configured = process.env.SHEETS_TRANSPORT?.trim().toLowerCase();
-  if (configured === "memory") return "memory";
+  if (configured === "memory") {
+    if ((process.env.VERCEL || process.env.NODE_ENV === "production") && !isLocalFixtureMode()) {
+      throw new Error("Offline Sheets transport is disabled on deployments.");
+    }
+    return "memory";
+  }
   if (configured === "google") return "google";
+  if (process.env.VERCEL || process.env.NODE_ENV === "production") return "google";
   return process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "google" : "memory";
 }
 

@@ -45,7 +45,8 @@ test.describe("ekspor dokumen IAP", () => {
     expect(html).toContain("III. PARAMETER KEBERHASILAN");
     expect(html).toContain("IV. PENUTUP &amp; KOMITMEN MANAJEMEN");
     // The page prints itself, so "PDF" is one click and the browser's own dialog.
-    expect(html).toContain('onload="window.print()"');
+    expect(html).toContain('window.addEventListener("load", () => window.print())');
+    expect(html).toMatch(/<script nonce="[A-Za-z0-9+/=]+">/);
   });
 
   test("kasus yang tidak ada menjawab 404", async ({ request }) => {

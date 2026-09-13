@@ -13,14 +13,19 @@
     "authorize-drive": "tsx scripts/authorize-drive.ts",
     "fix-dashboard-tab": "tsx scripts/fix-dashboard-formulas.ts",
     "migrate-context-to-tracker": "tsx scripts/migrate-context-to-tracker.ts",
-    "seed-test-sheet": "tsx scripts/seed-test-sheet.ts"
+    "seed-test-sheet": "tsx scripts/seed-test-sheet.ts",
+    "check:branches": "tsx scripts/check-branches.ts",
+    "seed-demo-users": "tsx --env-file-if-exists=.env.local scripts/seed-demo-users.ts",
+    "test:security": "tsx scripts/test-security.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.116.0",
     "googleapis": "174.0.1",
-    "next": "15.5.23",
+    "next": "15.5.25",
     "react": "19.1.9",
     "react-dom": "19.1.9",
-    "server-only": "^0.0.1"
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
@@ -31,5 +36,10 @@
     "tailwindcss": "4.3.3",
     "tsx": "4.20.3",
     "typescript": "5.9.2"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.28"
+    }
   }
 }

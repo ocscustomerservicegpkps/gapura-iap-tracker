@@ -1,8 +1,10 @@
+import { headers } from "next/headers";
 import { readContexts } from "@/data/case-context";
 import { readItems } from "@/data/tracker-repository";
 import { DOCX_CONTENT_TYPE, renderDocx } from "@/export/docx";
 import { buildIapDocument } from "@/export/iap-document";
 import { renderPrintHtml } from "@/export/print-html";
+import { canAccessCase } from "@/lib/case-access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,16 @@ export async function GET(
   { params }: { params: Promise<{ iapId: string }> },
 ) {
   const { iapId } = await params;
+
+  // The printed document carries the whole case, so this route is a read of case
+  // data and is gated exactly like the dashboard that links to it.
+  if (!(await canAccessCase(iapId))) {
+    return new Response("Anda tidak memiliki akses ke kasus ini.", {
+      status: 403,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   const search = new URL(request.url).searchParams;
   const rawStep = search.get("step");
   const requestedStep = parseStep(rawStep);
@@ -54,12 +66,13 @@ export async function GET(
       headers: {
         "Content-Type": DOCX_CONTENT_TYPE,
         "Content-Disposition": `attachment; filename="${name}"`,
+        "Cache-Control": "private, no-store",
       },
     });
   }
 
-  return new Response(renderPrintHtml(doc), {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+  return new Response(renderPrintHtml(doc, (await headers()).get("x-nonce") ?? ""), {
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
   });
 }
 

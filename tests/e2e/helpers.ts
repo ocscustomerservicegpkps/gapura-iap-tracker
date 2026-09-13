@@ -167,29 +167,28 @@ export async function editItem(
   await expect(page.getByTestId("item-modal")).toBeVisible();
 }
 
-/** Render a paginated desktop row without relying on scroll side effects. */
+/**
+ * Put a desktop row on screen whatever page it falls on.
+ *
+ * The table pages 25 rows at a time, so a row the assertion cares about may not be
+ * on the first one. Switching the page size to "Semua" puts every row in the DOM in
+ * one step, which is steadier than walking pages and needs no scroll side effects.
+ */
 export async function revealItem(
   page: Page,
   iapId: string,
   stepNo: number,
 ): Promise<void> {
-  const row = page.getByTestId(`row-${iapId}-${stepNo}`);
-  for (let attempt = 0; attempt < 10 && (await row.count()) === 0; attempt++) {
-    const loadMore = page.getByTestId("load-more").getByRole("button");
-    if ((await loadMore.count()) === 0) break;
-    await loadMore.evaluate((button: HTMLButtonElement) => button.click());
-    await page.waitForTimeout(50);
-  }
-  await expect(row).toHaveCount(1);
+  await revealAllItems(page);
+  await expect(page.getByTestId(`row-${iapId}-${stepNo}`)).toHaveCount(1);
 }
 
-/** Expand the infinite-scroll table when an assertion needs the full dataset. */
+/** Drop the table's paging so an assertion can see the whole dataset at once. */
 export async function revealAllItems(page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const loadMore = page.getByTestId("load-more").getByRole("button");
-    if ((await loadMore.count()) === 0) return;
-    await loadMore.evaluate((button: HTMLButtonElement) => button.click());
-    await page.waitForTimeout(50);
+  const pageSize = page.getByTestId("page-size-top");
+  if ((await pageSize.count()) === 0) return;
+  if ((await pageSize.inputValue()) !== "0") {
+    await pageSize.selectOption("0");
   }
 }
 

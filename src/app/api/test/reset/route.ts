@@ -1,3 +1,4 @@
+import { isOfflineAuth } from "@/lib/offline";
 import { revalidatePath } from "next/cache";
 import { isMemoryTransport, resetMemoryTransport } from "@/sheets";
 
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
  * deployment that talks to a real spreadsheet.
  */
 export async function POST() {
-  if (!isMemoryTransport()) {
+  if (!isOfflineAuth() || !isMemoryTransport()) {
     return new Response("Not found", { status: 404 });
   }
   resetMemoryTransport();

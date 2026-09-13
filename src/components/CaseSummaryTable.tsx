@@ -113,11 +113,33 @@ export function CaseSummaryTable({
       </ul>
 
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full border-collapse text-[13px]" data-testid="case-summary">
+        <table
+          // Headers wrap rather than run into the next column: under `table-fixed`
+          // a `nowrap` heading overflows its cell instead of widening it.
+          className="w-full table-fixed border-collapse text-[13px] [&_td]:break-words [&_thead_th]:whitespace-normal"
+          data-testid="case-summary"
+        >
           <caption className="sr-only">
             Ringkasan item aksi per kasus IAP: jumlah total, selesai, sedang
             berjalan, belum dimulai, dan terlambat.
           </caption>
+          {/*
+            Without this the browser splits the width by header text, which left
+            `Judul Kasus` about 110px and wrapped every title over five lines —
+            the tallest thing in the row. The counts and actions are what have a
+            known size, so they are pinned and the title takes the remainder.
+          */}
+          <colgroup>
+            <col className="w-[112px]" />
+            <col />
+            <col className="w-[124px]" />
+            <col className="w-[46px]" />
+            <col className="w-[76px]" />
+            <col className="w-[64px]" />
+            <col className="w-[60px]" />
+            <col className="w-[64px]" />
+            <col className="w-[168px]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-line">
               <Th>Number Flight / ID IAP</Th>
@@ -150,9 +172,9 @@ export function CaseSummaryTable({
                 >
                   {summary.iapId}
                 </th>
-                <td className="max-w-[360px] px-2.5 py-2.5 text-ink-mid">
+                <td className="px-2.5 py-2.5 align-top text-[12.5px] leading-snug text-ink-mid">
                   {summary.title}
-                  <span className="mt-0.5 block text-[11px] text-faint">
+                  <span className="mt-0.5 block text-[11px] leading-snug text-faint">
                     {summary.station}
                   </span>
                 </td>
@@ -176,8 +198,11 @@ export function CaseSummaryTable({
                 <td className="px-2.5 py-2.5 text-center font-semibold text-late">
                   {summary.overdue}
                 </td>
-                <td className="px-2.5 py-2.5">
-                  <div className="flex flex-wrap justify-end gap-2">
+                {/* Six actions in a narrow column wrap one-per-line and set the
+                    height of the whole table. A fixed two-column grid pairs them
+                    into three predictable rows instead. */}
+                <td className="px-2.5 py-2.5 align-top">
+                  <div className="grid grid-cols-2 gap-1.5">
                     <LinkButton
                       onClick={() => onOpenContext(summary)}
                       testId={`case-context-${summary.iapId}`}
@@ -317,8 +342,13 @@ function CaseEvidenceLinks({
   );
 }
 
+/**
+ * Compact on purpose. Six of these sit in the summary's `Aksi` cell, and at the
+ * previous size they wrapped one-per-line — which set the height of every row in
+ * the table to ~237px and pushed the tracker below six screens of summary.
+ */
 const LINK_CLASS =
-  "flex min-h-[28px] cursor-pointer items-center rounded-[5px] border border-line px-2.5 py-1 text-[11.5px] font-semibold hover:bg-head";
+  "flex min-h-[26px] cursor-pointer items-center justify-center whitespace-nowrap rounded-[5px] border border-line px-2 py-0.5 text-[11px] font-semibold hover:bg-head";
 
 function LinkButton({
   children,

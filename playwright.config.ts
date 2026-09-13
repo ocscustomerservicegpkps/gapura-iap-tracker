@@ -25,6 +25,13 @@ const NOW_LATER = "2026-09-15T05:00:00Z";
 
 const serverEnv = (now: string) => ({
   SHEETS_TRANSPORT: process.env.SHEETS_TRANSPORT ?? "memory",
+  ENABLE_OFFLINE_TEST_MODE: "1",
+  VERCEL: "",
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: "",
+  GOOGLE_PRIVATE_KEY: "",
+  GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN: "",
+  APP_URL: "",
+  VERCEL_PROJECT_PRODUCTION_URL: "",
   IAP_NOW: now,
   TZ: "America/Los_Angeles",
   NODE_ENV: "production",
