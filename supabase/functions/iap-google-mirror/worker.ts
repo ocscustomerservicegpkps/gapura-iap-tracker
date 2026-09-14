@@ -6,9 +6,13 @@ export interface MirrorSheet {
 }
 type State = { baseline: Cells[]; initialized: boolean };
 function column(i: number) { return String.fromCharCode(65 + i); }
-export async function syncOnce(db: SupabaseDatabase, sheet: MirrorSheet, tab = "Tracker") {
+/**
+ * `force` is set by the Apps Script webhook so a live sheet edit does not wait
+ * out the idle cooldown. Failure backoff is still honoured inside the RPC.
+ */
+export async function syncOnce(db: SupabaseDatabase, sheet: MirrorSheet, tab = "Tracker", force = false) {
   const token = crypto.randomUUID();
-  const state = await db.rpc<State | null>("iap_sync_acquire", { p_token: token });
+  const state = await db.rpc<State | null>("iap_sync_acquire", { p_token: token, p_force: force });
   if (!state) return { skipped: true };
   const range = `'${tab.replace(/'/g, "''")}'!A1:W`;
   try {

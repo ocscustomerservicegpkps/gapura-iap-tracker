@@ -88,6 +88,13 @@ test("worker imports and acknowledges only verified sheet data",async()=>{
  assert.equal(finish.body.p_error,null);
  assert.deepEqual(finish.body.p_baseline,[row()]);
 });
+test("cron runs stay throttled while the sheet webhook forces a cycle",async()=>{
+ const cron=new FakeDatabase(),webhook=new FakeDatabase();
+ await syncOnce(cron,new FakeSheet());
+ await syncOnce(webhook,new FakeSheet(),"Tracker",true);
+ assert.equal(cron.calls.find(c=>c.name==="iap_sync_acquire")!.body.p_force,false);
+ assert.equal(webhook.calls.find(c=>c.name==="iap_sync_acquire")!.body.p_force,true);
+});
 test("worker writes only changed cells and keeps columns from other authors",async()=>{
  const db=new FakeDatabase(),sheet=new FakeSheet(),r=row();
  db.baseline=[r];db.rows=[{cells:edit(r,7,"NEW PIC"),version:2}];sheet.raw=[r.map(String)];

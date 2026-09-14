@@ -6,7 +6,12 @@ Deno.serve(async (request) => {
  try {
   const config=await db.rpc<any>("iap_sync_config",{p_token:request.headers.get("x-iap-sync-token")??""});
   if(!config) return new Response("Unauthorized",{status:401});
-  const result=await syncOnce(db,new GoogleMirror(config),config.tab);
+  // The Apps Script webhook sends {"force":true}; cron sends an empty body and
+  // keeps the idle cooldown. Body is read only after the token is verified.
+  const body=await request.text().catch(()=>"");
+  let force=false;
+  if(body.length<=1000){ try{ force=(JSON.parse(body||"{}")as{force?:unknown})?.force===true; }catch{ force=false; } }
+  const result=await syncOnce(db,new GoogleMirror(config),config.tab,force);
   return Response.json(result);
  } catch(error) {
   console.error(error instanceof Error?error.message:"Sync failed");

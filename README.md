@@ -63,7 +63,8 @@ melalui server. Model akses aplikasi tetap tanpa login seperti sebelumnya.
 
 ## Mirror dua arah
 
-Edge Function `iap-google-mirror` dijalankan **pg_cron + pg_net setiap menit**.
+Edge Function `iap-google-mirror` dipicu **Apps Script webhook saat sheet diedit**,
+dengan **pg_cron + pg_net** sebagai jaring pengaman berkala.
 Credentials Google service account berada di Vault, bukan browser atau repository.
 
 Worker memakai lease untuk mencegah overlap, memvalidasi header dan composite key,
@@ -88,8 +89,36 @@ Edit tepat antara pembacaan terakhir dan batch masih dapat berbenturan. Worker
 memverifikasi setelah write dan tidak mengakui baseline yang gagal diverifikasi.
 Gunakan aplikasi sebagai jalur utama untuk edit bersamaan pada sel yang sama.
 
-Mirror normal berjalan sekitar satu menit; dashboard terbuka dapat memerlukan
-siklus refresh berikutnya. Save Supabase tetap berjalan ketika mirror menunggu retry.
+Save Supabase tetap berjalan ketika mirror menunggu retry.
+
+### Real time
+
+Dua lapis push menggantikan polling:
+
+1. **Sheets → Supabase.** `scripts/apps-script/iap-sheet-webhook.gs` dipasang di
+   spreadsheet sebagai installable trigger `onEdit` dan `onChange`. Setiap edit,
+   insert, atau delete row memanggil Edge Function dengan `{"force":true}`.
+   `iap_sync_acquire(p_token, p_force)` melewati cooldown 50 detik hanya bila
+   siklus terakhir sehat (`failures=0`); backoff akibat error tetap dihormati,
+   sehingga mirror rusak tidak dihantam rentetan edit. Edit yang datang saat
+   sync berjalan ditandai `pending` dan disapu di putaran berikutnya.
+2. **Supabase → dashboard.** Trigger statement-level `iap_tracker_broadcast`
+   mengirim ping kosong lewat `realtime.send()` ke topik privat `iap-tracker`.
+   Browser hanya menerima fakta "ada perubahan", lalu `router.refresh()` menarik
+   render server yang tetap memfilter per cabang — tidak ada baris cabang lain
+   yang melewati websocket. Policy pada `realtime.messages` membatasi topik itu
+   ke user `authenticated`. Ping gagal tidak pernah me-rollback write pemicunya.
+
+Latensi ujung ke ujung sekitar 3–6 detik. `useLiveRefresh` menyimpan interval
+cadangan 2 menit untuk websocket yang diblokir proxy, dan menahan refresh selama
+dialog terbuka agar isian tidak hilang.
+
+Setelah webhook aktif, longgarkan cron dari tiap menit menjadi jaring pengaman:
+
+```sql
+select cron.unschedule('iap-google-mirror');
+-- jadwalkan ulang dengan '*/5 * * * *' memakai body yang sama
+```
 
 ### Quota
 
