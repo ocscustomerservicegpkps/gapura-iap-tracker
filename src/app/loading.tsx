@@ -8,7 +8,7 @@ export default function Loading() {
   return (
     <div className="mx-auto max-w-[1400px] px-4 pt-7 pb-16 sm:px-8 sm:pt-9">
       <p className="sr-only" role="status">
-        Memuat data tracker dari spreadsheet…
+        Memuat data tracker…
       </p>
 
       <header className="mb-7 flex flex-wrap items-start justify-between gap-5">

@@ -62,8 +62,8 @@ export function ConfirmDialog({
         </p>
       ) : null}
       <p className="mt-3 text-[11.5px] text-faint">
-        Tindakan ini tidak dapat dibatalkan dari aplikasi. Pemulihan hanya melalui
-        riwayat versi Google Sheets.
+        Tindakan ini tidak dapat dibatalkan dari aplikasi. Hubungi administrator
+        jika perlu memulihkan data.
       </p>
       {error ? (
         <p

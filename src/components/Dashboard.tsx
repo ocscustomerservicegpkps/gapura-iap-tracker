@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteCaseAction, deleteItemAction } from "@/app/actions";
 import { caseIds, summariseByCase, summariseTotals } from "@/domain/aggregate";
@@ -65,6 +65,12 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible" && dialog.kind === "none") router.refresh();
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [router, dialog.kind]);
 
   const totals = useMemo(() => summariseTotals(items), [items]);
   const byCase = useMemo(() => summariseByCase(items), [items]);
@@ -306,7 +312,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
         <ConfirmDialog
           title="Hapus item aksi?"
           message={`Menghapus 1 baris: ${dialog.item.iapId} langkah ${dialog.item.stepNo} — ${dialog.item.step}.`}
-          detail="1 baris akan dihapus dari sheet Tracker dan kolom No akan dinomori ulang."
+          detail="1 item aksi akan dihapus dan nomor urut akan diperbarui."
           confirmLabel="Hapus item"
           busy={deleting}
           error={deleteError}
@@ -319,7 +325,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
         <ConfirmDialog
           title="Hapus kasus IAP?"
           message={`Menghapus kasus ${dialog.summary.iapId} — ${dialog.summary.title}.`}
-          detail={`${dialog.summary.total} baris akan dihapus dari sheet Tracker dan kolom No akan dinomori ulang.`}
+          detail={`${dialog.summary.total} item aksi akan dihapus dan nomor urut akan diperbarui.`}
           confirmLabel={`Hapus ${dialog.summary.total} baris`}
           busy={deleting}
           error={deleteError}

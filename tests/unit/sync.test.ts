@@ -1,0 +1,148 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { reconcile, normalize, TRACKER_HEADERS, type Cells } from "../../src/sync/reconcile";
+import { syncOnce, type MirrorSheet } from "../../src/sync/worker";
+import { SupabaseDatabase } from "../../src/supabase/database";
+import { GoogleQuota } from "../../src/sync/google-quota";
+
+const row = (id = "TEST", step = 1): Cells =>
+ [1,id,"Judul","CGK",step,"Langkah","Tindakan","PIC","","14 Okt 2026","Belum Dimulai",0,"","","","","","","","","","",""];
+const edit = (cells: Cells, column: number, value: string | number) => {
+ const r = [...cells]; r[column] = value; return r;
+};
+test("first import, unchanged polls, and direct DB edits", () => {
+ const r = row();
+ assert.equal(reconcile([], [r], []).changes.length, 1);
+ assert.deepEqual(reconcile([r], [r], [{cells:r,version:1}]), {changes:[],conflicts:[]});
+ const d = edit(r,7,"NEW PIC");
+ assert.deepEqual(reconcile([r],[r],[{cells:d,version:2}]),{changes:[],conflicts:[]});
+});
+test("independent columns merge; conflicting columns keep Supabase with audit", () => {
+ const r=row(), s=edit(r,7,"Sheets PIC"), d=edit(r,14,"Database evidence");
+ const plan=reconcile([r],[s],[{cells:d,version:2}]);
+ assert.equal(plan.changes[0]!.cells![7],"Sheets PIC");
+ assert.equal(plan.changes[0]!.cells![14],"Database evidence");
+ assert.equal(plan.changes[0]!.version,2);
+ const conflict=reconcile([r],[s],[{cells:edit(r,7,"DB PIC"),version:3}]);
+ assert.equal(conflict.changes.length,0);
+ assert.deepEqual(conflict.conflicts.map(c=>c.column),["pic"]);
+ assert.equal(conflict.conflicts[0]!.sheet,"Sheets PIC");
+});
+test("deletions propagate; concurrent delete/edit is recorded", () => {
+ const r=row();
+ assert.equal(reconcile([r],[],[{cells:r,version:4}]).changes[0]!.cells,null);
+ assert.equal(reconcile([r],[r],[]).changes.length,0);
+ const plan=reconcile([r],[],[{cells:edit(r,7,"new"),version:5}]);
+ assert.equal(plan.changes.length,0);
+ assert.equal(plan.conflicts[0]!.column,"__row__");
+});
+test("duplicate composite keys and invalid sheet numbers fail atomically", () => {
+ assert.throws(()=>reconcile([],[row(),row()],[]),/Duplikat/);
+ assert.throws(()=>normalize(edit(row(),4,"invalid")),/Angka/);
+ assert.throws(()=>normalize(edit(row(),11,101)),/progres/);
+});
+
+class FakeDatabase extends SupabaseDatabase {
+ rows: {cells:Cells;version:number}[] = [];
+ calls: {name:string;body:Record<string,unknown>}[] = [];
+ baseline: Cells[]=[]; available=true; failApply=false;
+ constructor() { super("https://example.supabase.co","secret"); }
+ override async rpc<T>(name:string,body:Record<string,unknown>={}):Promise<T> {
+  this.calls.push({name,body});
+  if(name==="iap_sync_acquire")return (this.available?{baseline:this.baseline,initialized:!!this.baseline.length}:null) as T;
+  if(name==="iap_sync_apply") {
+   if(this.failApply)throw new Error("snapshot changed");
+   for(const c of body.p_changes as {cells:Cells;version:number|null;iapId:string;stepNo:number}[]){
+    this.rows=this.rows.filter(r=>r.cells[1]!==c.iapId||r.cells[4]!==c.stepNo);
+    if(c.cells)this.rows.push({cells:c.cells,version:(c.version??0)+1});
+   }
+  }
+  if(name==="iap_snapshot")return structuredClone(this.rows) as T;
+  return undefined as T;
+ }
+}
+class FakeSheet implements MirrorSheet {
+ raw:string[][]=[]; writes:{range:string;values:Cells[]}[]=[]; failWrite=false;
+ changeOnSecondRead=false; reads=0;
+ async readRange() {
+  this.reads++;
+  if(this.changeOnSecondRead && this.reads===2) this.raw[0]![7]="other editor";
+  return [TRACKER_HEADERS, ...structuredClone(this.raw)];
+ }
+ async writeRanges(updates:readonly {range:string;values:Cells[]}[]) {
+  if(this.failWrite) throw new Error("quota exhausted");
+  this.writes.push(...updates);
+  for(const u of updates){
+   const m=u.range.match(/!([A-Z])(\d+)/)!;
+   const i=Number(m[2])-2, col=m[1]!.charCodeAt(0)-65;
+   this.raw[i]??=Array(23).fill("");
+   u.values[0]!.forEach((v,j)=>this.raw[i]![col+j]=String(v));
+  }
+ }
+}
+test("worker imports and acknowledges only verified sheet data",async()=>{
+ const db=new FakeDatabase(),sheet=new FakeSheet();sheet.raw=[row().map(String)];
+ const result=await syncOnce(db,sheet);
+ assert.equal(result.imported,1);assert.equal(sheet.writes.length,0);
+ const finish=db.calls.find(c=>c.name==="iap_sync_finish")!;
+ assert.equal(finish.body.p_error,null);
+ assert.deepEqual(finish.body.p_baseline,[row()]);
+});
+test("worker writes only changed cells and keeps columns from other authors",async()=>{
+ const db=new FakeDatabase(),sheet=new FakeSheet(),r=row();
+ db.baseline=[r];db.rows=[{cells:edit(r,7,"NEW PIC"),version:2}];sheet.raw=[r.map(String)];
+ await syncOnce(db,sheet);
+ assert.deepEqual(sheet.writes,[{range:"'Tracker'!H2",values:[["NEW PIC"]]}]);
+ assert.equal(sheet.raw[0]![16],"");
+});
+test("quota failure preserves baseline for retry",async()=>{
+ const db=new FakeDatabase(),sheet=new FakeSheet(),r=row();
+ db.baseline=[r];db.rows=[{cells:edit(r,7,"NEW PIC"),version:2}];sheet.raw=[r.map(String)];sheet.failWrite=true;
+ await assert.rejects(()=>syncOnce(db,sheet),/quota/);
+ const finish=db.calls.find(c=>c.name==="iap_sync_finish")!;
+ assert.equal(finish.body.p_error,"quota exhausted");
+ assert.deepEqual(finish.body.p_baseline,[r]);
+});
+test("row moves or concurrent sheet edits prevent outbound writes",async()=>{
+ const db=new FakeDatabase(),sheet=new FakeSheet(),r=row();
+ db.baseline=[r];db.rows=[{cells:edit(r,7,"NEW PIC"),version:2}];sheet.raw=[r.map(String)];sheet.changeOnSecondRead=true;
+ await assert.rejects(()=>syncOnce(db,sheet),/berubah/);
+ assert.equal(sheet.writes.length,0);
+});
+test("DB compare-and-set failure does not acknowledge or write",async()=>{
+ const db=new FakeDatabase(),sheet=new FakeSheet();sheet.raw=[row().map(String)];db.failApply=true;
+ await assert.rejects(()=>syncOnce(db,sheet),/snapshot changed/);
+ assert.equal(sheet.writes.length,0);
+ assert.equal(db.calls.at(-1)!.body.p_error,"snapshot changed");
+});
+test("lease coalesces overlapping worker invocations",async()=>{
+ const db=new FakeDatabase(),sheet=new FakeSheet();db.available=false;
+ assert.deepEqual(await syncOnce(db,sheet),{skipped:true});
+ assert.equal(sheet.reads,0);
+});
+test("empty populated tracker blocks destructive import", async () => {
+ const db = new FakeDatabase(), sheet = new FakeSheet();
+ db.baseline = [row()]; db.rows = [{cells: row(), version: 1}];
+ await assert.rejects(() => syncOnce(db, sheet), /penghapusan massal/);
+ assert.equal(db.calls.some(c => c.name === "iap_sync_apply"), false);
+ assert.equal(sheet.writes.length, 0);
+});
+test("429 retries then succeeds; long Retry-After leaves retry to job backoff", async () => {
+ const quota = new GoogleQuota(); let calls = 0;
+ const result = await quota.run("read", async () => {
+  calls++; if (calls === 1) throw { response: { status: 429, headers: new Headers() } };
+  return "success";
+ });
+ assert.equal(result, "success"); assert.equal(calls, 2);
+ const other = new GoogleQuota(); calls = 0;
+ await assert.rejects(() => other.run("read", async () => {
+  calls++; throw { response: { status: 429, headers: new Headers({"Retry-After":"120"}) } };
+ }));
+ assert.equal(calls, 1);
+});
+test("permission errors are not retried and do not poison quota queue",async()=>{
+ const quota=new GoogleQuota();let calls=0;
+ await assert.rejects(()=>quota.run("read",async()=>{calls++;throw {code:403};}));
+ assert.equal(calls,1);
+ assert.equal(await quota.run("write",async()=>42),42);
+});

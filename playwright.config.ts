@@ -24,6 +24,7 @@ const NOW_REFERENCE = "2026-08-10T05:00:00Z";
 const NOW_LATER = "2026-09-15T05:00:00Z";
 
 const serverEnv = (now: string) => ({
+  DATA_BACKEND: "memory",
   SHEETS_TRANSPORT: process.env.SHEETS_TRANSPORT ?? "memory",
   ENABLE_OFFLINE_TEST_MODE: "1",
   VERCEL: "",
@@ -88,14 +89,14 @@ export default defineConfig({
 
   webServer: [
     {
-      command: `npx next start -p ${MAIN_PORT}`,
+      command: `node node_modules/next/dist/bin/next start -p ${MAIN_PORT}`,
       url: `http://127.0.0.1:${MAIN_PORT}/api/health`,
       env: serverEnv(NOW_REFERENCE),
       reuseExistingServer: false,
       timeout: 120_000,
     },
     {
-      command: `npx next start -p ${LATER_PORT}`,
+      command: `node node_modules/next/dist/bin/next start -p ${LATER_PORT}`,
       url: `http://127.0.0.1:${LATER_PORT}/api/health`,
       env: serverEnv(NOW_LATER),
       reuseExistingServer: false,

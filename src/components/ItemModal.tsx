@@ -186,7 +186,7 @@ export function ItemModal({
       />
 
       <p className="mt-3 text-[11px] text-faint">
-        Tanggal disimpan ke spreadsheet dalam format Indonesia
+        Tanggal disimpan dalam format Indonesia
         {form.targetDate ? ` (contoh: ${formatTrackerDate(form.targetDate)})` : ""}.
         Kolom Overdue Status dihitung otomatis dan ikut diperbarui saat menyimpan.
       </p>

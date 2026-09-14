@@ -22,7 +22,7 @@ test.describe("menghapus", () => {
 
     const dialog = page.getByTestId("confirm-dialog");
     await expect(dialog).toContainText("GA254");
-    await expect(dialog).toContainText("9 baris akan dihapus");
+    await expect(dialog).toContainText("9 item aksi akan dihapus");
     await expect(page.getByTestId("confirm-delete")).toHaveText(
       "Hapus 9 baris",
     );
@@ -47,7 +47,7 @@ test.describe("menghapus", () => {
 
     await page.getByTestId("delete-HU702-3").click();
     await expect(page.getByTestId("confirm-dialog")).toContainText(
-      "1 baris akan dihapus",
+      "1 item aksi akan dihapus",
     );
     await page.getByTestId("confirm-delete").click();
 

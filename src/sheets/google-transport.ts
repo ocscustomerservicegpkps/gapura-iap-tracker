@@ -1,4 +1,5 @@
-import { google, type sheets_v4 } from "googleapis";
+import { auth, sheets, type sheets_v4 } from "@googleapis/sheets";
+import { GoogleQuota } from "../sync/google-quota";
 import type { CellValue } from "@/domain/rows";
 import {
   contiguousRunsDescending,
@@ -18,13 +19,14 @@ export interface GoogleTransportConfig {
  * spreadsheet's own (US) locale.
  */
 export class GoogleSheetsTransport implements SheetsTransport {
+  private readonly quota = new GoogleQuota();
   private readonly api: sheets_v4.Sheets;
   private readonly spreadsheetId: string;
   private tabIds: Promise<Map<string, number>> | null = null;
 
   constructor(config: GoogleTransportConfig) {
     this.spreadsheetId = config.spreadsheetId;
-    const auth = new google.auth.GoogleAuth({
+    const credentials = new auth.GoogleAuth({
       credentials: {
         client_email: config.clientEmail,
         // Env vars carry the newlines escaped.
@@ -32,16 +34,16 @@ export class GoogleSheetsTransport implements SheetsTransport {
       },
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
-    this.api = google.sheets({ version: "v4", auth });
+    this.api = sheets({ version: "v4", auth: credentials });
   }
 
   async readRange(range: string): Promise<string[][]> {
-    const response = await this.api.spreadsheets.values.get({
+    const response = await this.quota.run("read", () => this.api.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range,
       valueRenderOption: "FORMATTED_VALUE",
       dateTimeRenderOption: "FORMATTED_STRING",
-    });
+    }, { retry: false }));
     const values = response.data.values ?? [];
     return values.map((row) =>
       (row as unknown[]).map((cell) =>
@@ -52,7 +54,7 @@ export class GoogleSheetsTransport implements SheetsTransport {
 
   async writeRanges(updates: readonly RangeUpdate[]): Promise<void> {
     if (updates.length === 0) return;
-    await this.api.spreadsheets.values.batchUpdate({
+    await this.quota.run("write", () => this.api.spreadsheets.values.batchUpdate({
       spreadsheetId: this.spreadsheetId,
       requestBody: {
         valueInputOption: "RAW",
@@ -61,7 +63,7 @@ export class GoogleSheetsTransport implements SheetsTransport {
           values: update.values,
         })),
       },
-    });
+    }, { retry: false }));
   }
 
   async appendRows(

@@ -9,9 +9,8 @@ import { deriveItems } from "@/domain/overdue";
 import { requireActiveProfile } from "@/lib/auth";
 
 /**
- * Rendered per request so "today" is always current and so the Sheets reads
- * underneath run again each time. That keeps the dashboard honest about a
- * spreadsheet someone edited by hand, at the cost of one read per page view.
+ * Rendered per request so the Jakarta date and database snapshot stay current.
+ * Item and context repositories share one Supabase snapshot per render.
  */
 export const dynamic = "force-dynamic";
 

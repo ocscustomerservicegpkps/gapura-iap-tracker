@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { saveContext } from "@/data/case-context";
+import { databaseKind } from "@/supabase/database";
 import { canAccessCase, canAccessStation } from "@/lib/case-access";
 import {
   createCase,
@@ -23,7 +24,7 @@ import {
 
 /**
  * Drops the rendered page so the author sees their own change straight away. The
- * sheet reads themselves are not cached across requests. Every mutation goes
+ * database reads themselves are not cached across requests. Every mutation goes
  * through here; nothing else revalidates.
  */
 function refresh(): void {
@@ -39,11 +40,11 @@ async function run(
     return result;
   } catch (error) {
     // A failed save must say so rather than let the user walk away believing it landed.
-    console.error("Sheet mutation failed");
+    console.error("Database mutation failed");
     return {
       ok: false,
       errors: {
-        form: "Gagal menyimpan ke spreadsheet. Silakan coba lagi atau hubungi admin.",
+        form: "Gagal menyimpan data. Silakan coba lagi atau hubungi admin.",
       } satisfies FieldErrors,
     };
   }
@@ -96,8 +97,7 @@ export async function deleteItemAction(key: ItemKey): Promise<MutationResult> {
 }
 
 /**
- * A case is stored entirely in Tracker. Action rows are created first, then their
- * context columns R–W are filled, so a failed row creation cannot leave orphan data.
+ * Supabase stores case rows and context atomically; offline fixtures use their original path.
  */
 export async function createCaseAction(
   raw: Record<string, unknown>,
@@ -115,7 +115,7 @@ export async function createCaseAction(
   return run(async () => {
     const created = await createCase(parsed.value);
     if (!created.ok) return created;
-    await saveContext(parsed.value.context);
+    if (databaseKind() === "memory") await saveContext(parsed.value.context);
     return created;
   });
 }
@@ -137,9 +137,9 @@ export async function updateCaseAction(
     };
   }
   return run(async () => {
-    const updated = await updateCaseMeta(iapId, title, station);
+    const updated = await updateCaseMeta(iapId, title, station, context);
     if (!updated.ok) return updated;
-    await saveContext(context);
+    if (databaseKind() === "memory") await saveContext(context);
     return updated;
   });
 }

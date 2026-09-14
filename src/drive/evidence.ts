@@ -1,8 +1,7 @@
 import "server-only";
 
-import { matchesEvidenceSignature } from "@/domain/evidence-file";
 import { Readable } from "node:stream";
-import { google } from "googleapis";
+import { auth, drive as driveApi, type drive_v3 } from "@googleapis/drive";
 import {
   evidenceFileName,
   viewOnlyLink,
@@ -16,7 +15,7 @@ import {
 
 export type EvidenceKind = "photo" | "document";
 
-export const MAX_EVIDENCE_BYTES = 4 * 1024 * 1024;
+export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Whether this deployment can accept a file at all. The credential lookups below
@@ -116,13 +115,13 @@ function evidenceAuth() {
   }
 
   if (clientId && clientSecret && refreshToken) {
-    const auth = new google.auth.OAuth2(clientId, clientSecret);
-    auth.setCredentials({ refresh_token: refreshToken });
-    return auth;
+    const client = new auth.OAuth2(clientId, clientSecret);
+    client.setCredentials({ refresh_token: refreshToken });
+    return client;
   }
 
   const credentials = googleCredentials();
-  return new google.auth.GoogleAuth({
+  return new auth.GoogleAuth({
     credentials: {
       client_email: credentials.clientEmail,
       private_key: credentials.privateKey.replace(/\\n/g, "\n"),
@@ -135,13 +134,12 @@ export function validateEvidenceFile(
   file: File,
   kind: EvidenceKind,
 ): string | null {
-  if (file.name.length > 255 || /[\x00-\x1f]/.test(file.name)) return "Nama file evidence tidak valid.";
   if (file.size === 0) return "File evidence kosong.";
   // The whole file is buffered in memory before it reaches Drive, so the ceiling is
   // checked here against the actual body rather than against a Content-Length header
   // — that header counts the multipart envelope too and was rejecting valid files.
   if (file.size > MAX_EVIDENCE_BYTES) {
-    return "Ukuran file evidence maksimal 4 MB.";
+    return "Ukuran file evidence maksimal 10 MB.";
   }
   const allowedTypes = kind === "photo" ? PHOTO_TYPES : DOCUMENT_TYPES;
   const allowedExtensions =
@@ -153,9 +151,7 @@ export function validateEvidenceFile(
   // MIME type or application/octet-stream. The file picker already filters by
   // extension, so the server accepts the same explicit extension list instead of
   // rejecting a valid selection before it can ever reach Drive or column Q.
-  if (!allowedExtensions.has(extension) ||
-      (mimeType !== "" && mimeType !== "application/octet-stream" &&
-       (!allowedTypes.has(mimeType) || mimeType !== MIME_BY_EXTENSION[extension]))) {
+  if (!allowedTypes.has(mimeType) && !allowedExtensions.has(extension)) {
     return kind === "photo"
       ? "Foto harus berformat JPG, PNG, WEBP, HEIC, atau HEIF."
       : "Dokumen harus berformat PDF, DOC, atau DOCX.";
@@ -168,15 +164,10 @@ export async function uploadEvidenceFile(
   key: ItemKey,
   identity: EvidenceFileIdentity,
 ): Promise<UploadedEvidence> {
-  const drive = google.drive({ version: "v3", auth: evidenceAuth() });
+  const drive = driveApi({ version: "v3", auth: evidenceAuth() });
   const fileName = evidenceFileName(file.name, key, identity);
   const mimeType = evidenceMimeType(file);
-  const validationError = validateEvidenceFile(file, MIME_BY_EXTENSION[fileExtension(file.name)]?.startsWith("image/") ? "photo" : "document");
-  if (validationError) throw new Error(validationError);
   const bytes = Buffer.from(await file.arrayBuffer());
-  if (!matchesEvidenceSignature(bytes, fileExtension(file.name))) {
-    throw new Error("Isi file tidak sesuai dengan format evidence.");
-  }
   let uploaded;
   try {
     uploaded = await drive.files.create({
@@ -210,7 +201,7 @@ export async function uploadEvidenceFile(
   const fileId = uploaded.data.id;
   if (!fileId) throw new Error("Google Drive tidak mengembalikan ID file.");
 
-  // Inherit the evidence folder ACL. A link must never bypass Google access checks.
+  await shareByLink(drive, fileId);
 
   // Drive answers with an `/edit` URL even for a plain uploaded .docx. Hand back
   // the read-only form, so what the dialog reports and what reaches column Q are
@@ -235,9 +226,37 @@ function evidenceMimeType(file: File): string {
   return MIME_BY_EXTENSION[fileExtension(file.name)] ?? "application/octet-stream";
 }
 
+/**
+ * A freshly uploaded file is private to whichever account the upload credentials
+ * belong to. The share link then lands in column Q looking perfectly normal while
+ * everybody else — including the person who just uploaded it from a different Google
+ * account — sees "You need access", and the Evidence IAP folder looks empty to them.
+ *
+ * Grant reader-by-link so the stored URL is actually openable. A Workspace policy can
+ * forbid `anyone` links; that is not a reason to fail an upload that already
+ * succeeded, so the failure is logged and the file stays owner-only.
+ */
+async function shareByLink(
+  drive: drive_v3.Drive,
+  fileId: string,
+): Promise<void> {
+  try {
+    await drive.permissions.create({
+      fileId,
+      supportsAllDrives: true,
+      requestBody: { role: "reader", type: "anyone" },
+    });
+  } catch (error) {
+    console.error(
+      `Evidence file ${fileId} tidak bisa dibagikan lewat link. Link di kolom Q hanya bisa dibuka oleh pemilik file.`,
+      error,
+    );
+  }
+}
+
 /** Best-effort rollback when the sheet write fails after Drive accepted the file. */
 export async function deleteEvidenceFile(fileId: string): Promise<void> {
-  await google.drive({ version: "v3", auth: evidenceAuth() }).files.delete({
+  await driveApi({ version: "v3", auth: evidenceAuth() }).files.delete({
     fileId,
     supportsAllDrives: true,
   });

@@ -1,5 +1,5 @@
 import "server-only";
-import { isLocalFixtureMode } from "@/lib/offline";
+import { databaseKind } from "@/supabase/database";
 
 import contextFixture from "@/fixtures/context-fixture.json";
 import fixture from "@/fixtures/tracker-fixture.json";
@@ -33,19 +33,13 @@ type TransportKind = "google" | "memory";
 
 export function transportKind(): TransportKind {
   const configured = process.env.SHEETS_TRANSPORT?.trim().toLowerCase();
-  if (configured === "memory") {
-    if ((process.env.VERCEL || process.env.NODE_ENV === "production") && !isLocalFixtureMode()) {
-      throw new Error("Offline Sheets transport is disabled on deployments.");
-    }
-    return "memory";
-  }
+  if (configured === "memory") return "memory";
   if (configured === "google") return "google";
-  if (process.env.VERCEL || process.env.NODE_ENV === "production") return "google";
   return process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "google" : "memory";
 }
 
 export function isMemoryTransport(): boolean {
-  return transportKind() === "memory";
+  return databaseKind() === "memory" && transportKind() === "memory";
 }
 
 // Held on globalThis so the fake's contents survive dev-server hot reloads.

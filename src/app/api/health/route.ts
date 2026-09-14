@@ -1,4 +1,5 @@
 import { transportKind } from "@/sheets";
+import { databaseKind } from "@/supabase/database";
 
 export const dynamic = "force-dynamic";
 
@@ -9,5 +10,5 @@ export const dynamic = "force-dynamic";
  * global setup and gets an explanation instead of a readiness timeout.
  */
 export function GET() {
-  return Response.json({ ok: true, transport: transportKind() });
+  return Response.json({ ok: true, transport: databaseKind() === "memory" ? transportKind() : "supabase" });
 }

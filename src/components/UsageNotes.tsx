@@ -8,9 +8,9 @@ export function UsageNotes() {
       <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-[1.9] text-ink-mid">
         <li>
           Setiap baris pada tabel Tracker mewakili satu item aksi dari sebuah
-          Improvement Action Plan (IAP). Data dibaca langsung dari spreadsheet dan
-          diperbarui otomatis paling lambat sekitar satu menit setelah seseorang
-          mengubahnya di sana.
+          Improvement Action Plan (IAP). Perubahan yang disimpan tampil langsung.
+          Data juga tersinkron dengan spreadsheet secara berkala, biasanya dalam
+          sekitar satu menit saat koneksi normal.
         </li>
         <li>
           Gunakan kotak pencarian, filter ID IAP / Status, serta tombol Overdue dan
@@ -25,7 +25,7 @@ export function UsageNotes() {
         <li>
           Kolom <b>Overdue Status</b> tidak lagi diisi manual. Nilainya dihitung
           otomatis dari Tanggal Target terhadap tanggal hari ini di zona waktu
-          Asia/Jakarta, dan ikut ditulis ke spreadsheet setiap kali sebuah baris
+          Asia/Jakarta, dan tersinkron ke spreadsheet setelah sebuah baris
           disimpan.
         </li>
         <li>
@@ -39,7 +39,7 @@ export function UsageNotes() {
           pihak terkait, referensi surat peringatan, analisis akar masalah, Parameter
           Keberhasilan (KPI), dan komitmen manajemen. Bertuliskan <b>+ Konteks</b>{" "}
           bila kasus itu belum punya — semuanya dapat diisi dan diubah dari dalam
-          aplikasi, tersimpan di kolom <b>R–W</b> pada tab <b>Tracker</b>.
+          aplikasi, dan tersinkron ke kolom <b>R–W</b> pada tab <b>Tracker</b>.
           Bagian yang kosong tidak ditampilkan.
         </li>
       </ol>

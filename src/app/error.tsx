@@ -3,10 +3,7 @@
 import { useEffect } from "react";
 
 /**
- * Everything the dashboard shows comes from one spreadsheet, so every failure that
- * reaches here is really one of three things: credentials, connectivity, or the
- * sheet's own shape. Says which, in the language the rest of the app speaks, and
- * offers the retry rather than leaving a stack trace on screen.
+ * Database failures show a retry without exposing server details.
  */
 export default function Error({
   error,
@@ -26,17 +23,15 @@ export default function Error({
           Data tracker tidak dapat dimuat
         </h1>
         <p className="mt-2.5 text-[13px] leading-relaxed text-ink-mid">
-          Dasbor gagal membaca spreadsheet sumbernya. Data di spreadsheet tidak
-          terpengaruh — yang gagal hanya pembacaannya.
+          Dasbor gagal memuat data tracker. Silakan coba muat ulang.
         </p>
 
         <ul className="mt-4 list-disc space-y-1.5 pl-5 text-[12.5px] leading-relaxed text-muted">
-          <li>Koneksi ke Google Sheets sedang terputus atau lambat.</li>
+          <li>Koneksi database sedang terputus atau lambat.</li>
           <li>
-            Kredensial service account belum diatur, kedaluwarsa, atau kehilangan
-            akses ke spreadsheet.
+            Konfigurasi akses database belum lengkap atau tidak valid.
           </li>
-          <li>Nama tab Tracker berubah atau kolom R–W tidak tersedia di spreadsheet.</li>
+          <li>Schema database belum dimigrasikan.</li>
         </ul>
 
         <div className="mt-6 flex flex-wrap gap-2">
