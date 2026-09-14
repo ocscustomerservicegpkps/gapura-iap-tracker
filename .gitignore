@@ -20,3 +20,13 @@ next-env.d.ts
 .env*
 
 .next-security/
+.next.production-cache/
+playwright-report/
+
+# Scratch scripts and probe output, not part of the app
+tmp/
+
+# Spreadsheet export the app was reverse-engineered from: bulky, not a build input
+/IAP Monitor Tracker Indonesia/
+/IAP Monitor Tracker Indonesia.zip
+/support.js
