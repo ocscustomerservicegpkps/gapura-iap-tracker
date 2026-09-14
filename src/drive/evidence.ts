@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { auth, drive as driveApi, type drive_v3 } from "@googleapis/drive";
 import {
@@ -87,6 +88,42 @@ const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
 export interface UploadedEvidence {
   fileId: string;
   webViewLink: string;
+  /**
+   * True when this call did not create the file — an identical upload for the same
+   * row gotten there first. The caller must not delete a reused file on rollback:
+   * it is the file an earlier, already-committed row is linked to.
+   */
+  reused: boolean;
+}
+
+/**
+ * Hangs are the failure mode that produces duplicates: the browser gives up, the
+ * person picks the file again, and the first request is still on its way to Drive.
+ * Failing the call outright keeps the retry a retry rather than a second upload
+ * racing the first.
+ */
+const DRIVE_TIMEOUT_MS = 60_000;
+
+/** Applied per request rather than per client, so each call gets its own budget. */
+const driveTimeout = { timeout: DRIVE_TIMEOUT_MS };
+
+/**
+ * Marks every uploaded file with a fingerprint of its bytes plus the row it was
+ * attached to, so a repeat of the same upload is recognisable in Drive itself. No
+ * extra table is involved, which matters because the duplicate has to be detected
+ * across serverless invocations that share nothing.
+ */
+const EVIDENCE_HASH_PROPERTY = "iapEvidenceHash";
+
+function evidenceFingerprint(
+  bytes: Buffer,
+  key: ItemKey,
+  fileName: string,
+): string {
+  return createHash("sha256")
+    .update(`${key.iapId}\0${key.stepNo}\0${fileName}\0`)
+    .update(bytes)
+    .digest("hex");
 }
 
 /**
@@ -159,15 +196,30 @@ export function validateEvidenceFile(
   return null;
 }
 
+/**
+ * `bytes` is the body the caller has already read. A `File` can only be drained
+ * once cheaply, and the route reads it to check the format signature, so passing
+ * the buffer through avoids holding a second copy of a 10 MB upload in memory.
+ */
 export async function uploadEvidenceFile(
   file: File,
   key: ItemKey,
   identity: EvidenceFileIdentity,
+  bytes?: Buffer,
 ): Promise<UploadedEvidence> {
   const drive = driveApi({ version: "v3", auth: evidenceAuth() });
   const fileName = evidenceFileName(file.name, key, identity);
   const mimeType = evidenceMimeType(file);
-  const bytes = Buffer.from(await file.arrayBuffer());
+  const body = bytes ?? Buffer.from(await file.arrayBuffer());
+  const fingerprint = evidenceFingerprint(body, key, fileName);
+
+  // A double-click, an impatient re-pick after a slow upload, or a retry of a
+  // request that actually reached Drive all arrive here as the same bytes for the
+  // same row. Adopting the file that is already there keeps one file per upload
+  // instead of a folder of indistinguishable copies under the same generated name.
+  const alreadyThere = await findByFingerprint(drive, fingerprint);
+  if (alreadyThere) return { ...alreadyThere, reused: true };
+
   let uploaded;
   try {
     uploaded = await drive.files.create({
@@ -176,15 +228,26 @@ export async function uploadEvidenceFile(
         name: fileName,
         mimeType,
         parents: [evidenceDriveFolderId()],
+        appProperties: { [EVIDENCE_HASH_PROPERTY]: fingerprint },
       },
       media: {
         mimeType,
-        body: Readable.from(bytes),
+        body: Readable.from(body),
       },
       fields: "id,webViewLink",
-    });
+    }, driveTimeout);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const code = (error as { code?: string | number }).code;
+    if (
+      code === "ETIMEDOUT" ||
+      code === "ECONNRESET" ||
+      /timeout of \d+ms exceeded|aborted/i.test(message)
+    ) {
+      throw new Error(
+        "Google Drive tidak merespons sampai batas waktu. File kemungkinan belum tersimpan — coba unggah ulang file yang sama; sistem tidak akan membuat salinan ganda.",
+      );
+    }
     if (/invalid_grant/i.test(message)) {
       throw new Error(
         "Otorisasi Google Drive sudah tidak berlaku. Admin perlu membuat GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN baru dengan Client ID dan Client Secret yang sama, memperbarui environment Vercel Production, lalu melakukan redeploy.",
@@ -201,6 +264,13 @@ export async function uploadEvidenceFile(
   const fileId = uploaded.data.id;
   if (!fileId) throw new Error("Google Drive tidak mengembalikan ID file.");
 
+  // Two requests that both looked before either had created anything each hold a
+  // file now. Drive has no conditional create to prevent that, so settle it after
+  // the fact: both racers rank the candidates identically and the loser removes
+  // the copy it just made, leaving the same single file for both callers.
+  const winner = await settleDuplicates(drive, fingerprint, fileId);
+  if (winner && winner.fileId !== fileId) return { ...winner, reused: true };
+
   await shareByLink(drive, fileId);
 
   // Drive answers with an `/edit` URL even for a plain uploaded .docx. Hand back
@@ -212,7 +282,79 @@ export async function uploadEvidenceFile(
       uploaded.data.webViewLink ??
         `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`,
     ),
+    reused: false,
   };
+}
+
+/** Files carrying this fingerprint, oldest first, with ID as a stable tiebreak. */
+async function fingerprintMatches(
+  drive: drive_v3.Drive,
+  fingerprint: string,
+): Promise<{ fileId: string; webViewLink: string }[]> {
+  const listed = await drive.files.list({
+    q: `appProperties has { key='${EVIDENCE_HASH_PROPERTY}' and value='${fingerprint}' } and '${evidenceDriveFolderId()}' in parents and trashed = false`,
+    fields: "files(id,webViewLink,createdTime)",
+    pageSize: 10,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  }, driveTimeout);
+  return (listed.data.files ?? [])
+    .filter((found): found is drive_v3.Schema$File & { id: string } => !!found.id)
+    .sort(
+      (a, b) =>
+        (a.createdTime ?? "").localeCompare(b.createdTime ?? "") ||
+        a.id.localeCompare(b.id),
+    )
+    .map((found) => ({
+      fileId: found.id,
+      webViewLink: viewOnlyLink(
+        found.webViewLink ??
+          `https://drive.google.com/file/d/${encodeURIComponent(found.id)}/view`,
+      ),
+    }));
+}
+
+/**
+ * A lookup failure must never block an upload — the worst case of not finding the
+ * earlier copy is the duplicate we have today, while failing here would reject a
+ * file the user can legitimately attach.
+ */
+async function findByFingerprint(
+  drive: drive_v3.Drive,
+  fingerprint: string,
+): Promise<{ fileId: string; webViewLink: string } | null> {
+  try {
+    return (await fingerprintMatches(drive, fingerprint))[0] ?? null;
+  } catch (error) {
+    console.error("Evidence duplicate lookup failed; continuing with a fresh upload.", error);
+    return null;
+  }
+}
+
+async function settleDuplicates(
+  drive: drive_v3.Drive,
+  fingerprint: string,
+  ownFileId: string,
+): Promise<{ fileId: string; webViewLink: string } | null> {
+  try {
+    const matches = await fingerprintMatches(drive, fingerprint);
+    const winner = matches[0];
+    if (!winner || winner.fileId === ownFileId) return null;
+    // Only ever delete the file this call created. Drive's list is not immediately
+    // consistent, so the other racer may still be deciding; it reaches the same
+    // ranking and will keep the winner.
+    await drive.files.delete({
+      fileId: ownFileId,
+      supportsAllDrives: true,
+    }, driveTimeout);
+    return winner;
+  } catch (error) {
+    console.error(
+      `Could not settle duplicate evidence uploads for ${ownFileId}; the file was kept.`,
+      error,
+    );
+    return null;
+  }
 }
 
 function fileExtension(fileName: string): string {
@@ -254,10 +396,27 @@ async function shareByLink(
   }
 }
 
-/** Best-effort rollback when the sheet write fails after Drive accepted the file. */
+/**
+ * Best-effort rollback when the row write fails after Drive accepted the file.
+ * Retried once because a single transient 5xx here is the difference between a
+ * clean folder and an orphan nobody will ever be able to trace back to a row, and
+ * a file that is already gone counts as rolled back.
+ */
 export async function deleteEvidenceFile(fileId: string): Promise<void> {
-  await driveApi({ version: "v3", auth: evidenceAuth() }).files.delete({
-    fileId,
-    supportsAllDrives: true,
-  });
+  const drive = driveApi({ version: "v3", auth: evidenceAuth() });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await drive.files.delete({
+        fileId,
+        supportsAllDrives: true,
+      }, driveTimeout);
+      return;
+    } catch (error) {
+      const status = (error as { status?: number; code?: number }).status
+        ?? (error as { code?: number }).code;
+      if (status === 404) return;
+      if (attempt >= 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
 }

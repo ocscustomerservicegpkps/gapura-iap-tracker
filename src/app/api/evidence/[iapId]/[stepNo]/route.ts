@@ -82,7 +82,10 @@ export async function POST(
     }
 
     const extension = file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase();
-    if (!matchesEvidenceSignature(new Uint8Array(await file.arrayBuffer()), extension)) {
+    // Read the body once. The signature check and the Drive upload both need the
+    // bytes, and a second `arrayBuffer()` would hold a second copy of a 10 MB file.
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (!matchesEvidenceSignature(new Uint8Array(bytes), extension)) {
       return Response.json({ error: "Isi file tidak sesuai dengan format evidence." }, { status: 400 });
     }
 
@@ -119,16 +122,29 @@ export async function POST(
     // selects "Semua Langkah Perbaikan".
     const primaryKey = keys[0]!;
     const primaryItem = targetItems[0]!;
-    const uploaded = await uploadEvidenceFile(file, primaryKey, {
-      station: primaryItem.station,
-      date: primaryItem.targetDate || todayInJakarta(),
-    });
+    const uploaded = await uploadEvidenceFile(
+      file,
+      primaryKey,
+      {
+        station: primaryItem.station,
+        date: primaryItem.targetDate || todayInJakarta(),
+      },
+      bytes,
+    );
     const saved = await appendEvidenceLinks(keys, uploaded.webViewLink);
     if (!saved.ok) {
-      try {
-        await deleteEvidenceFile(uploaded.fileId);
-      } catch (rollbackError) {
-        console.error("Failed to roll back orphaned evidence file");
+      // A reused file belongs to an earlier upload that already succeeded and is
+      // linked from a row; deleting it here would break that row's evidence.
+      if (!uploaded.reused) {
+        try {
+          await deleteEvidenceFile(uploaded.fileId);
+        } catch (rollbackError) {
+          // The ID is the only way an operator can find and remove the orphan.
+          console.error(
+            `Failed to roll back orphaned evidence file ${uploaded.fileId}`,
+            rollbackError,
+          );
+        }
       }
       return Response.json(
         { error: Object.values(saved.errors)[0] ?? "Gagal menyimpan link evidence." },

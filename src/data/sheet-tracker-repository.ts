@@ -58,6 +58,28 @@ async function readItemsUncached(): Promise<ActionItem[]> {
 }
 
 /**
+ * Every write here is a read-modify-write against a sheet that offers no
+ * compare-and-set, so two overlapping saves of the same row both read the old
+ * column Q and the second one writes back a value that never saw the first one's
+ * link. Sheets is the mirror rather than the source of truth now, but an upload
+ * and a save can still overlap on the offline path, and a silently dropped
+ * evidence link is not something anybody notices in time.
+ *
+ * Serialising the read-modify-write pairs closes that window within a server
+ * instance. It does not coordinate across instances — the Supabase path is what
+ * provides real atomicity — so it is a narrowing of the race, not a lock.
+ */
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function serialized<T>(write: () => Promise<T>): Promise<T> {
+  const next = writeChain.then(write, write);
+  // Keep the chain alive after a rejection, and do not leave the failure
+  // unobserved on the internal link.
+  writeChain = next.catch(() => undefined);
+  return next;
+}
+
+/**
  * All action items, read fresh for each page render and memoised only for the
  * duration of that render, so a single render still costs a single Sheets read.
  *
@@ -145,6 +167,13 @@ export async function updateStep(
   key: ItemKey,
   input: StepInput,
 ): Promise<MutationResult> {
+  return serialized(() => updateStepNow(key, input));
+}
+
+async function updateStepNow(
+  key: ItemKey,
+  input: StepInput,
+): Promise<MutationResult> {
   const rows = await loadPositioned();
   const target = find(rows, key);
   if (!target) {
@@ -202,6 +231,13 @@ export async function appendEvidenceLinks(
   keys: readonly ItemKey[],
   rawLink: string,
 ): Promise<MutationResult> {
+  return serialized(() => appendEvidenceLinksNow(keys, rawLink));
+}
+
+async function appendEvidenceLinksNow(
+  keys: readonly ItemKey[],
+  rawLink: string,
+): Promise<MutationResult> {
   if (keys.length === 0) return failure("steps", "Pilih minimal satu langkah.");
   const cleanLink = safeLink(rawLink);
   if (!cleanLink || cleanLink.includes("\n")) {
@@ -216,10 +252,12 @@ export async function appendEvidenceLinks(
     if (!target) {
       return failure("form", `Item ${key.iapId} langkah ${key.stepNo} tidak ditemukan.`);
     }
-    const existing = viewOnlyLinks(target.item.evidenceLink).join("\n");
+    // A retried upload that adopted the file already in Drive arrives with a link
+    // the row may already carry; appending it again would list the same evidence
+    // twice. `mergeEvidenceLinks` is the same union the full-row save uses.
     updates.push({
       range: rowRange(target.rowNumber, "Q", "Q"),
-      values: [[existing ? `${existing}\n${evidenceLink}` : evidenceLink]],
+      values: [[mergeEvidenceLinks(target.item.evidenceLink, evidenceLink)]],
     });
   }
   await getTransport().writeRanges(updates);

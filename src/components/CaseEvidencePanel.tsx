@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import type { DerivedActionItem } from "@/domain/types";
 
 type EvidenceMode = "link" | "photo" | "document";
@@ -36,6 +36,7 @@ export function CaseEvidencePanel({
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [fileInputVersion, setFileInputVersion] = useState(0);
+  const inFlight = useRef(false);
 
   const targets =
     targetMode === "all"
@@ -63,6 +64,9 @@ export function CaseEvidencePanel({
   };
 
   const uploadFile = (fileToUpload: File) => {
+    // `pending` disables the input only from the next render on, so a second change
+    // event in the same tick would start a second upload of the same file.
+    if (inFlight.current) return;
     setError(null);
     setSuccess(null);
     if (targets.length === 0) {
@@ -70,6 +74,7 @@ export function CaseEvidencePanel({
       return;
     }
 
+    inFlight.current = true;
     startTransition(async () => {
       onBusyChange(true);
       try {
@@ -93,6 +98,7 @@ export function CaseEvidencePanel({
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
+        inFlight.current = false;
         setFileInputVersion((current) => current + 1);
         onBusyChange(false);
       }

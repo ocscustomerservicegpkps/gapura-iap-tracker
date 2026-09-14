@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteCaseAction, deleteItemAction } from "@/app/actions";
 import { caseIds, summariseByCase, summariseTotals } from "@/domain/aggregate";
@@ -27,6 +27,7 @@ import { FilterBar } from "./FilterBar";
 import { ItemModal } from "./ItemModal";
 import { KpiCards } from "./KpiCards";
 import { runAction } from "./run-action";
+import { useLiveRefresh } from "./use-live-refresh";
 import type { Suggestions } from "./StepFields";
 import { UsageNotes } from "./UsageNotes";
 
@@ -65,12 +66,7 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible" && dialog.kind === "none") router.refresh();
-    }, 60_000);
-    return () => clearInterval(timer);
-  }, [router, dialog.kind]);
+  useLiveRefresh(dialog.kind !== "none");
 
   const totals = useMemo(() => summariseTotals(items), [items]);
   const byCase = useMemo(() => summariseByCase(items), [items]);

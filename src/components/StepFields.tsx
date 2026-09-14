@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { STATUSES, type Status } from "@/domain/types";
 import type { FieldErrors, StepInput } from "@/domain/validate";
 import { STATUS_LABEL } from "./status-styles";
@@ -326,9 +326,14 @@ function EvidenceAttachmentField({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadedName, setUploadedName] = useState<string | null>(null);
   const isDeferred = !uploadTarget && !!deferredTarget;
+  // `uploading` disables the input, but the disable only takes effect on the next
+  // render — two change events in the same tick would both start a request. The ref
+  // is read and set synchronously, so the second one never leaves the browser.
+  const inFlight = useRef(false);
 
   const upload = async (file: File | undefined) => {
     if (!file) return;
+    if (inFlight.current) return;
     if (deferredTarget && !uploadTarget) {
       onLinkChange("");
       deferredTarget.onSelected({ kind: mode as "photo" | "document", file });
@@ -337,6 +342,7 @@ function EvidenceAttachmentField({
       return;
     }
     if (!uploadTarget) return;
+    inFlight.current = true;
     setUploading(true);
     onBusyChange?.(true);
     setUploadError(null);
@@ -366,14 +372,17 @@ function EvidenceAttachmentField({
     } catch (cause) {
       // A dropped connection surfaces as a bare "Failed to fetch", which reads as
       // though the server rejected the file. It did not — the request never
-      // finished, so nothing reached Drive and column Q is unchanged.
+      // finished, and from here there is no way to tell whether it reached Drive
+      // first. Re-picking the same file is safe either way: the server recognises
+      // an identical upload for the same step and reuses the file already there.
       const message = cause instanceof Error ? cause.message : String(cause);
       setUploadError(
         /failed to fetch|networkerror|load failed/i.test(message)
-          ? "Koneksi terputus sebelum file selesai diunggah. File belum masuk Drive — pilih filenya lagi dan tunggu sampai muncul keterangan berhasil."
+          ? "Koneksi terputus sebelum upload selesai. Pilih file yang sama sekali lagi dan tunggu sampai muncul keterangan berhasil — file tidak akan terunggah dua kali."
           : message,
       );
     } finally {
+      inFlight.current = false;
       setUploading(false);
       onBusyChange?.(false);
     }
