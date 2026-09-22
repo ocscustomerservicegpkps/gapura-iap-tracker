@@ -6,13 +6,32 @@ import { viewOnlyLink } from "@/domain/evidence";
 import { todayInJakarta } from "@/domain/dates";
 import type { ItemKey } from "@/domain/types";
 import type { CaseInput, StepInput, FieldErrors } from "@/domain/validate";
-import type { CaseContext } from "@/domain/context";
+import { contextsFromCells, type CaseContext } from "@/domain/context";
+import type { ActionItem } from "@/domain/types";
 import * as offline from "./sheet-tracker-repository";
+import { readContexts as offlineContexts } from "./sheet-case-context";
 
 export type MutationResult = { ok: true } | { ok: false; errors: FieldErrors };
 export const readDatabaseRows = cache(() => database().snapshot());
 export const readItems = cache(async () => databaseKind() === "memory"
   ? offline.readItems() : (await readDatabaseRows()).map(r => rowToItem(r.cells)));
+
+/**
+ * Items and case context from one snapshot. `cache` only memoises inside a React
+ * render, so a route handler calling `readItems` and `readContexts` separately
+ * would fetch the snapshot twice; this fetches it once anywhere.
+ */
+export const readTracker = cache(async (): Promise<{
+  items: ActionItem[];
+  contexts: Record<string, CaseContext>;
+}> => {
+  if (databaseKind() === "memory") {
+    const [items, contexts] = await Promise.all([offline.readItems(), offlineContexts()]);
+    return { items, contexts };
+  }
+  const cells = (await readDatabaseRows()).map((row) => row.cells);
+  return { items: cells.map(rowToItem), contexts: contextsFromCells(cells) };
+});
 
 const links = (raw: string) => [...new Set(safeLinks(raw).map(viewOnlyLink))].join("\n");
 const step = (input: StepInput) => ({ ...input, evidenceLink: links(input.evidenceLink) });

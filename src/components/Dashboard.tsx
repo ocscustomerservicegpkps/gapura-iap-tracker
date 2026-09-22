@@ -83,11 +83,9 @@ export function Dashboard({ items, today, caseContext }: DashboardProps) {
     setDeleteError(null);
   };
 
-  const afterSave = () => {
-    close();
-    // The action already revalidated the cache; this pulls the fresh render in.
-    router.refresh();
-  };
+  // No router.refresh(): a Server Action that calls revalidatePath returns the fresh
+  // render in its own response, so refreshing again would fetch the snapshot twice.
+  const afterSave = close;
 
   /** Clicking the active column flips direction; a new column starts ascending. */
   const toggleSort = (key: SortKey) => {

@@ -1,19 +1,14 @@
 import "server-only";
 import { cache } from "react";
 import { database, databaseKind } from "@/supabase/database";
-import { emptyContext, rowToContext, hasContext, type CaseContext } from "@/domain/context";
+import { contextsFromCells, emptyContext, type CaseContext } from "@/domain/context";
 import { todayInJakarta } from "@/domain/dates";
 import { readDatabaseRows } from "./tracker-repository";
 import * as offline from "./sheet-case-context";
 
 export const readContexts = cache(async (): Promise<Record<string, CaseContext>> => {
   if (databaseKind() === "memory") return offline.readContexts();
-  const result: Record<string, CaseContext> = {};
-  for (const { cells } of await readDatabaseRows()) {
-    const context = rowToContext([cells[1], ...cells.slice(17, 23)]);
-    if (hasContext(context)) result[context.iapId] = context;
-  }
-  return result;
+  return contextsFromCells((await readDatabaseRows()).map((row) => row.cells));
 });
 export async function saveContext(context: CaseContext): Promise<void> {
   if (databaseKind() === "memory") return offline.saveContext(context);

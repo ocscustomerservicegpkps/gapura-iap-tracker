@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { signInAction } from "@/app/auth/actions";
 import { AuthField, AuthForm, AuthLink } from "@/components/AuthForm";
 import { PasswordField } from "@/components/PasswordField";
-import { currentProfile } from "@/lib/auth";
+import { verifiedProfile } from "@/lib/auth";
 
 /** Reasons another page may have sent someone back here. */
 const NOTICES: Record<string, string> = {
@@ -17,7 +17,9 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ notice?: string }>;
 }) {
-  const profile = await currentProfile();
+  // Verified with Supabase, not just locally: if the middleware refused this session
+  // (it lets /login through regardless), sending it to / would bounce straight back.
+  const profile = await verifiedProfile();
   if (profile?.status === "active") redirect("/");
 
   const { notice } = await searchParams;

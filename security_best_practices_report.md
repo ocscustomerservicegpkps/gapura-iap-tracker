@@ -228,7 +228,10 @@ stack dan kebijakan retensi tanpa menyimpan token atau isi sensitif berlebihan.
 
 ## Kontrol yang sudah baik dan tetap dipertahankan
 
-- Validasi sesi memakai `getUser`, bukan mempercayai cookie atau `getSession` saja.
+- Validasi sesi memakai `getUser`, bukan mempercayai cookie atau `getSession` saja:
+  middleware memanggil `getUser` pada setiap request; halaman dan action sesudahnya
+  memverifikasi tanda tangan JWT dengan `getClaims` (JWKS) agar tidak mengulang
+  round trip yang sama. Halaman publik `/login` tetap memakai `getUser`.
 - Role/status berasal dari profile, bukan metadata pengguna yang dikirim form.
 - Filter baris/context berlangsung di server sebelum data dikirim ke dashboard.
 - Server action dan route sensitif memeriksa akses secara mandiri.

@@ -1,7 +1,6 @@
 import { AppHeader } from "@/components/AppHeader";
 import { Dashboard } from "@/components/Dashboard";
-import { readContexts } from "@/data/case-context";
-import { readItems } from "@/data/tracker-repository";
+import { readTracker } from "@/data/tracker-repository";
 import { canSeeStation } from "@/domain/branches";
 import { hasGlobalAccess } from "@/domain/access";
 import { todayInJakarta } from "@/domain/dates";
@@ -15,9 +14,15 @@ import { requireActiveProfile } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
+  // Started alongside the profile check, so the page waits for the slower of the two
+  // rather than their sum. It is awaited only after that check has passed, so nothing
+  // is rendered, and a pending account is still redirected rather than shown a
+  // database error. The cost: an unapproved account's visit spends one snapshot.
+  const tracker = readTracker();
+  tracker.catch(() => {}); // Rejection is surfaced by the await below.
   const profile = await requireActiveProfile();
+  const { items: rows, contexts: caseContext } = await tracker;
   const today = todayInJakarta();
-  const [rows, caseContext] = await Promise.all([readItems(), readContexts()]);
 
   /**
    * Branch users see only their own station's rows, and the filtering happens here

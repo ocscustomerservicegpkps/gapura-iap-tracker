@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   approveUserAction,
   deleteUserAction,
@@ -61,7 +60,6 @@ export function UserAdmin({
   users: readonly AdminUser[];
   currentUserId: string;
 }) {
-  const router = useRouter();
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, startTransition] = useTransition();
@@ -80,8 +78,8 @@ export function UserAdmin({
         setErrors(result.errors);
         return;
       }
+      // The action's revalidatePath already brought the fresh list back.
       setDialog({ kind: "none" });
-      router.refresh();
     });
   }
 

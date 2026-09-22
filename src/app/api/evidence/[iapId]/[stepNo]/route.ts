@@ -58,7 +58,10 @@ export async function POST(
   }
   // Uploading writes a link into the case's rows, so it needs the same branch check
   // the editing dialog behind it went through.
-  if (!(await canAccessCase(iapId))) {
+  // Read at most once: by the access check for a branch user, or below otherwise.
+  let read: ReturnType<typeof readItems> | undefined;
+  const trackerItems = () => (read ??= readItems());
+  if (!(await canAccessCase(iapId, trackerItems))) {
     return Response.json(
       { error: "Anda tidak memiliki akses ke kasus ini." },
       { status: 403 },
@@ -101,7 +104,7 @@ export async function POST(
       iapId,
       stepNo: targetStepNo,
     }));
-    const items = await readItems();
+    const items = await trackerItems();
     const targetItems = keys.map((key) =>
       items.find(
         (candidate) =>

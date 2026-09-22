@@ -1,6 +1,6 @@
 /**
- * The page waits on two Google Sheets reads before it can render anything, and a
- * cold read is not instant. This holds the same shapes the dashboard will fill —
+ * The page waits on the Supabase snapshot before it can render anything, and a
+ * cold edge-function call is not instant. This holds the same shapes the dashboard will fill —
  * five KPI cards, a summary block, three panels, a table — so the layout does not
  * jump when the data lands.
  */

@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
-import { readContexts } from "@/data/case-context";
-import { readItems } from "@/data/tracker-repository";
+import { readTracker } from "@/data/tracker-repository";
 import { DOCX_CONTENT_TYPE, renderDocx } from "@/export/docx";
 import { buildIapDocument } from "@/export/iap-document";
 import { renderPrintHtml } from "@/export/print-html";
@@ -20,10 +19,14 @@ export async function GET(
   { params }: { params: Promise<{ iapId: string }> },
 ) {
   const { iapId } = await params;
+  // One snapshot serves both the access check and the document, and is taken only
+  // once the profile check inside canAccessCase has passed.
+  let read: ReturnType<typeof readTracker> | undefined;
+  const tracker = () => (read ??= readTracker());
 
   // The printed document carries the whole case, so this route is a read of case
   // data and is gated exactly like the dashboard that links to it.
-  if (!(await canAccessCase(iapId))) {
+  if (!(await canAccessCase(iapId, async () => (await tracker()).items))) {
     return new Response("Anda tidak memiliki akses ke kasus ini.", {
       status: 403,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
@@ -39,7 +42,7 @@ export async function GET(
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }
-  const [items, contexts] = await Promise.all([readItems(), readContexts()]);
+  const { items, contexts } = await tracker();
   const caseRows = items.filter((item) => item.iapId === iapId);
   const rows = requestedStep !== null
     ? caseRows.filter((item) => item.stepNo === requestedStep)

@@ -29,22 +29,34 @@ const OFFLINE_PROFILE: Profile = {
  * The signed-in user's profile, or null when nobody is signed in.
  *
  * Memoised per render so a page and its layout do not each pay for the lookup.
- * `getUser` is used rather than `getSession` because it verifies the token with
- * Supabase instead of trusting a cookie the browser supplied.
+ * `getClaims` verifies the token's signature against the project's JWKS (cached in
+ * memory) rather than trusting a cookie the browser supplied. On every route that
+ * needs a session the middleware has already called `getUser` on this same request
+ * and turned the request away if Supabase refused it, so the session is still
+ * checked with Supabase once per request — this avoids paying that round trip twice.
  */
-export const currentProfile = cache(async (): Promise<Profile | null> => {
+export const currentProfile = cache(() => loadProfile("claims"));
+
+/**
+ * The same, verified with Supabase by `getUser`. For public pages only: there the
+ * middleware lets the request through even when Supabase refused the session, so a
+ * token that merely verifies locally must not count as signed in.
+ */
+export const verifiedProfile = cache(() => loadProfile("server"));
+
+async function loadProfile(verify: "claims" | "server"): Promise<Profile | null> {
   if (isOfflineAuth()) return OFFLINE_PROFILE;
 
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const userId = verify === "server"
+    ? (await supabase.auth.getUser()).data.user?.id
+    : (await supabase.auth.getClaims()).data?.claims.sub;
+  if (!userId) return null;
 
   const { data } = await supabase
     .from("profiles")
     .select("id, email, full_name, branch_code, role, status")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
   if (!data || !isBranchCode(data.branch_code) ||
       !["admin", "user"].includes(data.role) ||
@@ -58,7 +70,7 @@ export const currentProfile = cache(async (): Promise<Profile | null> => {
     role: data.role,
     status: data.status,
   };
-});
+}
 
 /**
  * Gate for every page that shows tracker data. An account that exists but has not

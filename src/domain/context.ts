@@ -91,6 +91,21 @@ export function contextToRow(context: CaseContext): string[] {
   ];
 }
 
+/**
+ * Case context keyed by ID, from full Tracker A–W rows. Context is duplicated on
+ * every row of a case; one populated copy is enough.
+ */
+export function contextsFromCells(
+  rows: readonly (readonly unknown[])[],
+): Record<string, CaseContext> {
+  const byId: Record<string, CaseContext> = {};
+  for (const cells of rows) {
+    const context = rowToContext([cells[1], ...cells.slice(17, 23)]);
+    if (context.iapId !== "" && hasContext(context)) byId[context.iapId] = context;
+  }
+  return byId;
+}
+
 /** True when at least one field beyond the ID carries something. */
 export function hasContext(context: CaseContext | null | undefined): boolean {
   if (!context) return false;

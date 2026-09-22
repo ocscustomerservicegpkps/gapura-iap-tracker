@@ -198,6 +198,9 @@ export function CaseModal({
             setErrors({ form: uploadError });
             return;
           }
+          // Uploads go through a route handler, whose revalidation does not reach
+          // this page the way a Server Action's does.
+          if (pendingEvidence.some(Boolean)) onEvidenceStored();
         } else if (caseEvidenceLink) {
           const evidenceResult = await runAction(() =>
             appendCaseEvidenceAction(
@@ -215,7 +218,6 @@ export function CaseModal({
             return;
           }
           setCaseEvidenceLink(null);
-          onEvidenceStored();
         }
         onSaved();
         return;
