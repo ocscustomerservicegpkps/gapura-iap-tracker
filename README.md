@@ -15,7 +15,7 @@ Environment server pada `.env.local`:
 
 ```dotenv
 DATA_BACKEND=supabase
-SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_URL=https://your-project.supabase.co # opsional; default NEXT_PUBLIC_SUPABASE_URL
 SUPABASE_IAP_SERVER_TOKEN=token_gateway_server
 IAP_SYNC_TOKEN=token_worker_mirror
 ```

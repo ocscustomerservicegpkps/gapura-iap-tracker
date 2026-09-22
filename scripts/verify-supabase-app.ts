@@ -15,7 +15,7 @@ async function main() {
  const exportResponse=await fetch(base+"/api/export/"+encodeURIComponent(String(expected[0]!.cells[1]))+"?format=docx");
  assert.equal(exportResponse.status,200);
  const docx=new Uint8Array(await exportResponse.arrayBuffer());assert.equal(docx[0],80);assert.equal(docx[1],75);
- const gateway=process.env.SUPABASE_URL+"/functions/v1/iap-data";
+ const gateway=(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)+"/functions/v1/iap-data";
  assert.equal((await fetch(gateway,{method:"POST",body:"{}"})).status,401);
  assert.equal((await fetch(gateway,{method:"POST",headers:{"x-iap-server-token":process.env.SUPABASE_IAP_SERVER_TOKEN??""},
   body:JSON.stringify({name:"iap_sync_config",payload:{}})})).status,403);

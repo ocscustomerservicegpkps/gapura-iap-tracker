@@ -30,6 +30,9 @@ export function databaseKind(): "memory" | "supabase" {
   return "supabase";
 }
 export function database(): SupabaseDatabase {
-  return new SupabaseDatabase(process.env.SUPABASE_URL ?? "", process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+  // The server talks to the same project the browser signs in to; SUPABASE_URL only
+  // needs setting when the data lives elsewhere.
+  return new SupabaseDatabase(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
     process.env.SUPABASE_IAP_SERVER_TOKEN ?? "");
 }
