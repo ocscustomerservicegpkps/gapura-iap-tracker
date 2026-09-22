@@ -5,6 +5,7 @@ const env: NodeJS.ProcessEnv = {
   ...process.env,
   NODE_ENV: "production",
   IAP_BUILD_DIR: ".next-security",
+  DATA_BACKEND: "memory",
   SHEETS_TRANSPORT: "memory",
   ENABLE_OFFLINE_TEST_MODE: "1",
   REQUIRE_AUTH_IN_FIXTURE_MODE: "1",

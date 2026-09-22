@@ -34,7 +34,7 @@ test("HTTP security gates and server actions with simulated sessions", { timeout
   mock.listen(3202, "127.0.0.1"); await once(mock, "listening");
   const base = "http://127.0.0.1:3200";
   const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3200", "-H", "127.0.0.1"], {
-    env: { ...process.env, NODE_ENV: "production", IAP_BUILD_DIR: ".next-security", SHEETS_TRANSPORT: "memory", ENABLE_OFFLINE_TEST_MODE: "1", REQUIRE_AUTH_IN_FIXTURE_MODE: "1", VERCEL: "", GOOGLE_SERVICE_ACCOUNT_EMAIL: "", GOOGLE_PRIVATE_KEY: "", GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN: "", NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:3202", NEXT_PUBLIC_SUPABASE_ANON_KEY: "local-test-publishable", APP_URL: base, VERCEL_PROJECT_PRODUCTION_URL: "" },
+    env: { ...process.env, NODE_ENV: "production", IAP_BUILD_DIR: ".next-security", DATA_BACKEND: "memory", SUPABASE_IAP_SERVER_TOKEN: "", SUPABASE_SERVICE_ROLE_KEY: "", SHEETS_TRANSPORT: "memory", ENABLE_OFFLINE_TEST_MODE: "1", REQUIRE_AUTH_IN_FIXTURE_MODE: "1", VERCEL: "", GOOGLE_SERVICE_ACCOUNT_EMAIL: "", GOOGLE_PRIVATE_KEY: "", GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN: "", NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:3202", NEXT_PUBLIC_SUPABASE_ANON_KEY: "local-test-publishable", APP_URL: base, VERCEL_PROJECT_PRODUCTION_URL: "" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let logs = "";
