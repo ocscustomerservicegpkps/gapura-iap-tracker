@@ -88,11 +88,12 @@ export async function deleteUserAction(id: string): Promise<MutationResult> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return failure("form", "Pengguna tidak ditemukan.");
   if (id === admin.id) return failure("form", "Anda tidak dapat menghapus akun sendiri.");
 
-  // Deleting the login itself, not just the profile, so the address can register
-  // again later. The database function re-checks that the caller is an admin.
+  // A trigger on `profiles` deletes the login too, so the address can register again
+  // later. Row level security re-checks that the caller is an admin deleting someone
+  // else; a refused delete matches no row rather than raising, hence the count.
   const supabase = await supabaseServer();
-  const { error } = await supabase.rpc("admin_delete_user", { target: id });
-  if (error) return failure("form", "Gagal memperbarui pengguna. Silakan coba lagi atau hubungi admin.");
+  const { data, error } = await supabase.from("profiles").delete().eq("id", id).select("id");
+  if (error || data?.length !== 1) return failure("form", "Gagal memperbarui pengguna. Silakan coba lagi atau hubungi admin.");
 
   revalidatePath("/admin/users");
   return { ok: true };
