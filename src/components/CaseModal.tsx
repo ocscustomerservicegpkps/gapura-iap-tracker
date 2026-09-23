@@ -14,7 +14,7 @@ import {
 } from "@/domain/context";
 import type { FieldErrors } from "@/domain/validate";
 import type { DerivedActionItem } from "@/domain/types";
-import { readUploadResponse } from "@/lib/upload-response";
+import { uploadEvidence } from "@/lib/evidence-upload-client";
 import {
   CaseEvidencePanel,
   type PendingCaseEvidenceLink,
@@ -235,20 +235,14 @@ export function CaseModal({
     for (const [index, selection] of pendingEvidence.entries()) {
       if (!selection) continue;
       try {
-        const body = new FormData();
-        body.set("kind", selection.kind);
-        body.set("file", selection.file);
-        const response = await fetch(
-          `/api/evidence/${encodeURIComponent(iapId.trim())}/${index + 1}`,
-          { method: "POST", body },
-        );
-        const result = await readUploadResponse<{ url?: string; error?: string }>(response);
-        if (!response.ok || !result.url) {
-          throw new Error(result.error || "Upload evidence gagal.");
-        }
+        const result = await uploadEvidence({
+          endpoint: `/api/evidence/${encodeURIComponent(iapId.trim())}/${index + 1}`,
+          file: selection.file,
+          kind: selection.kind,
+        });
         setSteps((current) =>
           current.map((step, stepIndex) =>
-            stepIndex === index ? { ...step, evidenceLink: result.url! } : step,
+            stepIndex === index ? { ...step, evidenceLink: result.url } : step,
           ),
         );
         setPendingEvidence((current) =>

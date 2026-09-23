@@ -1,6 +1,6 @@
 import { EVIDENCE_FILE_TOO_LARGE_MESSAGE } from "@/domain/evidence-file";
 
-/** Vercel can reject a large multipart body before the application route runs. */
+/** Infrastructure errors can be plain text even though app responses are JSON. */
 export async function readUploadResponse<T>(response: Response): Promise<T> {
   const body = await response.text();
   try {

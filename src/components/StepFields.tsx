@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { evidenceFileSizeError } from "@/domain/evidence-file";
 import { STATUSES, type Status } from "@/domain/types";
 import type { FieldErrors, StepInput } from "@/domain/validate";
-import { readUploadResponse } from "@/lib/upload-response";
+import { uploadEvidence } from "@/lib/evidence-upload-client";
 import { STATUS_LABEL } from "./status-styles";
 
 /**
@@ -325,6 +325,7 @@ function EvidenceAttachmentField({
 }) {
   const [mode, setMode] = useState<EvidenceMode>("document");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadedName, setUploadedName] = useState<string | null>(null);
   const isDeferred = !uploadTarget && !!deferredTarget;
@@ -355,28 +356,20 @@ function EvidenceAttachmentField({
     onBusyChange?.(true);
     setUploadError(null);
     setUploadedName(null);
+    setUploadProgress(0);
     try {
-      const body = new FormData();
-      body.set("kind", mode);
-      body.set("file", file);
-      const response = await fetch(
-        `/api/evidence/${encodeURIComponent(uploadTarget.iapId)}/${uploadTarget.stepNo}`,
-        { method: "POST", body },
-      );
-      const result = await readUploadResponse<{
-        url?: string;
-        name?: string;
-        error?: string;
-      }>(response);
-      if (!response.ok || !result.url) {
-        throw new Error(result.error || "Upload evidence gagal.");
-      }
+      const result = await uploadEvidence({
+        endpoint: `/api/evidence/${encodeURIComponent(uploadTarget.iapId)}/${uploadTarget.stepNo}`,
+        file,
+        kind: mode as "photo" | "document",
+        onProgress: setUploadProgress,
+      });
       // Keep the new URL in the form payload as well. The API has already appended
       // it to Q, and the repository's de-duplicating merge makes the later Save safe.
       // It remains hidden while file mode is active, so existing links are not editable.
       onLinkChange(result.url);
       uploadTarget.onUploaded(result.url);
-      setUploadedName(result.name || file.name);
+      setUploadedName(result.name);
     } catch (cause) {
       // A dropped connection surfaces as a bare "Failed to fetch", which reads as
       // though the server rejected the file. It did not — the request never
@@ -475,12 +468,12 @@ function EvidenceAttachmentField({
         {mode === "link"
           ? "Masukkan satu URL lengkap per baris. Tambahkan link baru di bawah link sebelumnya."
           : isDeferred
-            ? "File maksimal 4 MB dan akan diunggah setelah kasus berhasil dibuat."
-            : "File maksimal 4 MB. File disimpan ke Google Drive dan link-nya otomatis ditulis ke kolom Q."}
+            ? "File maksimal 100 MB dan akan diunggah setelah kasus berhasil dibuat."
+            : "File maksimal 100 MB. File dikirim langsung ke Google Drive dan link-nya otomatis ditulis ke kolom Q."}
       </span>
       {uploading ? (
         <p className="mt-1 text-[11.5px] text-accent" role="status">
-          Mengunggah ke Google Drive…
+          Mengunggah ke Google Drive… {uploadProgress}%
         </p>
       ) : null}
       {uploadedName ? (

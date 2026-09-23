@@ -4,6 +4,7 @@ import {
   contiguousFromOne,
   expectModalClosed,
   findRow,
+  mockEvidenceUpload,
   numbering,
   openDashboard,
   readDataRows,
@@ -76,16 +77,12 @@ test.describe("membuat kasus IAP baru", () => {
     request,
   }) => {
     const uploads: string[] = [];
-    await page.route("**/api/evidence/NEW-UPLOAD/1", async (route) => {
-      uploads.push(route.request().url());
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          url: "https://drive.google.com/file/d/new-upload-evidence/view",
-          name: "foto-ramp.png",
-        }),
-      });
+    await mockEvidenceUpload(page, "**/api/evidence/NEW-UPLOAD/1", {
+      url: "https://drive.google.com/file/d/new-upload-evidence/view",
+      name: "foto-ramp.png",
+      onApiRequest: (method) => {
+        if (method === "POST") uploads.push(method);
+      },
     });
 
     await startNewCase(page, {
@@ -102,7 +99,7 @@ test.describe("membuat kasus IAP baru", () => {
     await page.getByTestId("steps.0.field-evidence-file").setInputFiles({
       name: "foto-ramp.png",
       mimeType: "image/png",
-      buffer: Buffer.from("fake-png"),
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     });
     await expect(page.getByTestId("steps.0.evidence-uploaded")).toContainText(
       "siap diunggah saat kasus disimpan",
@@ -116,7 +113,7 @@ test.describe("membuat kasus IAP baru", () => {
     await page.getByTestId("steps.0.field-evidence-file").setInputFiles({
       name: "foto-ramp.png",
       mimeType: "image/png",
-      buffer: Buffer.from("fake-png"),
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     });
 
     await page.getByTestId("case-save").click();

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { evidenceFileSizeError } from "@/domain/evidence-file";
 import type { DerivedActionItem } from "@/domain/types";
-import { readUploadResponse } from "@/lib/upload-response";
+import { uploadEvidence } from "@/lib/evidence-upload-client";
 
 type EvidenceMode = "link" | "photo" | "document";
 type TargetMode = "all" | "selected";
@@ -36,6 +36,7 @@ export function CaseEvidencePanel({
   const [link, setLink] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [pending, startTransition] = useTransition();
   const [fileInputVersion, setFileInputVersion] = useState(0);
   const inFlight = useRef(false);
@@ -82,21 +83,17 @@ export function CaseEvidencePanel({
     }
 
     inFlight.current = true;
+    setUploadProgress(0);
     startTransition(async () => {
       onBusyChange(true);
       try {
-        const body = new FormData();
-        body.set("kind", mode);
-        body.set("file", fileToUpload);
-        body.set("stepNos", JSON.stringify(targets));
-        const response = await fetch(
-          `/api/evidence/${encodeURIComponent(iapId)}/${targets[0]}`,
-          { method: "POST", body },
-        );
-        const result = await readUploadResponse<{ error?: string }>(response);
-        if (!response.ok) {
-          throw new Error(result.error ?? "Upload evidence gagal.");
-        }
+        await uploadEvidence({
+          endpoint: `/api/evidence/${encodeURIComponent(iapId)}/${targets[0]}`,
+          file: fileToUpload,
+          kind: mode as "photo" | "document",
+          stepNos: targets,
+          onProgress: setUploadProgress,
+        });
 
         setSuccess(
           `Evidence ditambahkan ke ${targets.length} langkah dan disimpan di bawah link sebelumnya.`,
@@ -201,11 +198,12 @@ export function CaseEvidencePanel({
       )}
 
       {error ? <p className="mt-2 text-[11.5px] text-late-ink" role="alert" data-testid="case-evidence-error">{error}</p> : null}
+      {pending ? <p className="mt-2 text-[11.5px] text-accent" role="status">Mengunggah ke Google Drive… {uploadProgress}%</p> : null}
       {success ? <p className="mt-2 text-[11.5px] text-done" role="status" data-testid="case-evidence-success">{success}</p> : null}
       <p className="mt-2 text-[11px] text-faint">
         {mode === "link"
           ? "Link akan ditambahkan ke kolom Q saat Anda klik Simpan."
-          : "Maksimal 4 MB. File langsung diunggah setelah dipilih dan satu file Drive dipakai untuk semua langkah tujuan."}
+          : "Maksimal 100 MB. File langsung dikirim ke Google Drive dan satu file dipakai untuk semua langkah tujuan."}
       </p>
     </div>
   );

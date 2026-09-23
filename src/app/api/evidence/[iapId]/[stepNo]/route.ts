@@ -1,148 +1,90 @@
-import { sameOrigin } from "@/lib/security";
-import { limitedFormData, UploadBodyTooLarge } from "@/lib/upload-body";
-import { matchesEvidenceSignature } from "@/domain/evidence-file";
-import { MAX_EVIDENCE_BYTES } from "@/drive/evidence";
 import { revalidatePath } from "next/cache";
-import {
-  readItems,
-  appendEvidenceLinks,
-} from "@/data/tracker-repository";
+import { appendEvidenceLinks, readItems } from "@/data/tracker-repository";
 import { todayInJakarta } from "@/domain/dates";
+import type { EvidenceKind } from "@/domain/evidence-file";
+import type { DerivedActionItem, ItemKey } from "@/domain/types";
 import {
+  completeEvidenceUpload,
   deleteEvidenceFile,
   evidenceUploadStatus,
-  type EvidenceKind,
-  uploadEvidenceFile,
+  startEvidenceUploadSession,
   validateEvidenceFile,
+  type EvidenceUploadMetadata,
 } from "@/drive/evidence";
 import { canAccessCase } from "@/lib/case-access";
+import { sameOrigin } from "@/lib/security";
 import { isMemoryTransport } from "@/sheets";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ iapId: string; stepNo: string }> },
-) {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "Permintaan upload tidak valid." }, { status: 403 });
-  }
-  if (isMemoryTransport()) {
-    return Response.json(
-      { error: "Upload Google Drive tidak tersedia pada mode data offline." },
-      { status: 503 },
-    );
-  }
+type RouteContext = {
+  params: Promise<{ iapId: string; stepNo: string }>;
+};
 
-  // The env vars belong to whoever runs the server, not to the person attaching a
-  // document, so the reply says what they can do about it and the detail goes to
-  // the server log where an operator will find it.
-  const driveStatus = evidenceUploadStatus();
-  if (!driveStatus.ready) {
-    console.error(
-      `Evidence upload is not configured on this deployment. Missing: ${driveStatus.missing.join(", ")}`,
-    );
-    return Response.json(
-      {
-        error:
-          "Upload file belum aktif di server ini karena koneksi Google Drive belum dikonfigurasi. Gunakan pilihan Link Evidence untuk sementara, dan minta admin melengkapi konfigurasi Google Drive.",
-      },
-      { status: 503 },
-    );
-  }
+interface UploadTarget {
+  stepNos: number[];
+  keys: ItemKey[];
+  items: DerivedActionItem[];
+}
 
-  const { iapId, stepNo: rawStepNo } = await params;
-  const stepNo = Number(rawStepNo);
-  if (!iapId.trim() || !Number.isInteger(stepNo) || stepNo < 1) {
-    return Response.json({ error: "Identitas item evidence tidak valid." }, { status: 400 });
-  }
-  // Uploading writes a link into the case's rows, so it needs the same branch check
-  // the editing dialog behind it went through.
-  // Read at most once: by the access check for a branch user, or below otherwise.
-  let read: ReturnType<typeof readItems> | undefined;
-  const trackerItems = () => (read ??= readItems());
-  if (!(await canAccessCase(iapId, trackerItems))) {
-    return Response.json(
-      { error: "Anda tidak memiliki akses ke kasus ini." },
-      { status: 403 },
-    );
-  }
+export async function POST(request: Request, context: RouteContext) {
+  const unavailable = uploadAvailabilityError(request);
+  if (unavailable) return unavailable;
 
   try {
-    const form = await limitedFormData(request, MAX_EVIDENCE_BYTES + 128 * 1024);
-    const kind = form.get("kind");
-    const file = form.get("file");
-    if (kind !== "photo" && kind !== "document") {
-      return Response.json({ error: "Jenis evidence tidak valid." }, { status: 400 });
-    }
-    if (!(file instanceof File)) {
-      return Response.json({ error: "Pilih file evidence terlebih dahulu." }, { status: 400 });
-    }
+    const body: unknown = await request.json();
+    const parsed = parseInitiateBody(body);
+    if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
 
-    const validationError = validateEvidenceFile(file, kind as EvidenceKind);
+    const target = await resolveTarget(context, parsed.stepNos);
+    if (target instanceof Response) return target;
+    const primaryItem = target.items[0]!;
+    const validationError = validateEvidenceFile(parsed.file, parsed.kind);
     if (validationError) {
       return Response.json({ error: validationError }, { status: 400 });
     }
 
-    const extension = file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase();
-    // Read the body once. The signature check and the Drive upload both need the
-    // bytes, and a second `arrayBuffer()` would hold a second copy of a 4 MB file.
-    const bytes = Buffer.from(await file.arrayBuffer());
-    if (!matchesEvidenceSignature(new Uint8Array(bytes), extension)) {
-      return Response.json({ error: "Isi file tidak sesuai dengan format evidence." }, { status: 400 });
-    }
-
-    const requestedStepNos = parseStepNos(form.get("stepNos"), stepNo);
-    if (!requestedStepNos) {
-      return Response.json(
-        { error: "Daftar langkah tujuan evidence tidak valid." },
-        { status: 400 },
-      );
-    }
-
-    const keys = requestedStepNos.map((targetStepNo) => ({
-      iapId,
-      stepNo: targetStepNo,
-    }));
-    const items = await trackerItems();
-    const targetItems = keys.map((key) =>
-      items.find(
-        (candidate) =>
-          candidate.iapId === key.iapId && candidate.stepNo === key.stepNo,
-      ),
-    );
-    const missingIndex = targetItems.findIndex((item) => !item);
-    if (missingIndex >= 0) {
-      const missing = keys[missingIndex]!;
-      return Response.json(
-        { error: `Item ${missing.iapId} langkah ${missing.stepNo} tidak ditemukan.` },
-        { status: 404 },
-      );
-    }
-
-    // Upload the binary once, then reuse its share link for every selected row.
-    // This mirrors the IRRS flow and avoids duplicate Drive files when the user
-    // selects "Semua Langkah Perbaikan".
-    const primaryKey = keys[0]!;
-    const primaryItem = targetItems[0]!;
-    const uploaded = await uploadEvidenceFile(
-      file,
-      primaryKey,
+    const session = await startEvidenceUploadSession(
+      parsed.file,
+      parsed.kind,
+      target.keys[0]!,
       {
         station: primaryItem.station,
         date: primaryItem.targetDate || todayInJakarta(),
       },
-      bytes,
+      target.stepNos,
     );
-    const saved = await appendEvidenceLinks(keys, uploaded.webViewLink);
+    return Response.json(session);
+  } catch (error) {
+    console.error("Evidence upload session failed", error);
+    return uploadFailure(error);
+  }
+}
+
+export async function PATCH(request: Request, context: RouteContext) {
+  const unavailable = uploadAvailabilityError(request);
+  if (unavailable) return unavailable;
+
+  try {
+    const body: unknown = await request.json();
+    const parsed = parseCompleteBody(body);
+    if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+
+    const target = await resolveTarget(context, parsed.stepNos);
+    if (target instanceof Response) return target;
+    const uploaded = await completeEvidenceUpload(
+      parsed.fileId,
+      parsed.nonce,
+      parsed.kind,
+      target.keys[0]!,
+      target.stepNos,
+    );
+    const saved = await appendEvidenceLinks(target.keys, uploaded.webViewLink);
     if (!saved.ok) {
-      // A reused file belongs to an earlier upload that already succeeded and is
-      // linked from a row; deleting it here would break that row's evidence.
       if (!uploaded.reused) {
         try {
           await deleteEvidenceFile(uploaded.fileId);
         } catch (rollbackError) {
-          // The ID is the only way an operator can find and remove the orphan.
           console.error(
             `Failed to roll back orphaned evidence file ${uploaded.fileId}`,
             rollbackError,
@@ -158,42 +100,183 @@ export async function POST(
     revalidatePath("/");
     return Response.json({
       url: uploaded.webViewLink,
-      name: file.name,
-      stepNos: requestedStepNos,
+      name: parsed.originalName,
+      stepNos: target.stepNos,
     });
   } catch (error) {
-    if (error instanceof UploadBodyTooLarge) {
-      return Response.json({ error: "Ukuran upload terlalu besar. Maksimal file 4 MB." }, { status: 413 });
-    }
-    console.error("Evidence upload failed");
-    return Response.json(
-      { error: "Gagal mengunggah evidence. Silakan coba lagi atau hubungi admin." },
-      { status: 500 },
-    );
+    console.error("Evidence upload completion failed", error);
+    return uploadFailure(error);
   }
 }
 
-function parseStepNos(value: FormDataEntryValue | null, fallback: number): number[] | null {
-  if (value === null) return [fallback];
-  if (typeof value !== "string") return null;
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > 100) {
-      return null;
-    }
-    const unique = [...new Set(parsed)];
-    if (
-      unique.some(
-        (candidate) =>
-          typeof candidate !== "number" ||
-          !Number.isInteger(candidate) ||
-          candidate < 1,
-      )
-    ) {
-      return null;
-    }
-    return unique as number[];
-  } catch {
+function uploadAvailabilityError(request: Request): Response | null {
+  if (!sameOrigin(request)) {
+    return Response.json({ error: "Permintaan upload tidak valid." }, { status: 403 });
+  }
+  if (isMemoryTransport()) {
+    return Response.json(
+      { error: "Upload Google Drive tidak tersedia pada mode data offline." },
+      { status: 503 },
+    );
+  }
+  const status = evidenceUploadStatus();
+  if (!status.ready) {
+    console.error(
+      `Evidence upload is not configured on this deployment. Missing: ${status.missing.join(", ")}`,
+    );
+    return Response.json(
+      {
+        error:
+          "Upload file belum aktif di server ini karena koneksi Google Drive belum dikonfigurasi. Gunakan pilihan Link Evidence untuk sementara, dan minta admin melengkapi konfigurasi Google Drive.",
+      },
+      { status: 503 },
+    );
+  }
+  return null;
+}
+
+async function resolveTarget(
+  context: RouteContext,
+  requestedStepNos: number[] | undefined,
+): Promise<UploadTarget | Response> {
+  const { iapId, stepNo: rawStepNo } = await context.params;
+  const stepNo = Number(rawStepNo);
+  if (!iapId.trim() || !Number.isInteger(stepNo) || stepNo < 1) {
+    return Response.json({ error: "Identitas item evidence tidak valid." }, { status: 400 });
+  }
+  const stepNos = parseStepNos(requestedStepNos, stepNo);
+  if (!stepNos) {
+    return Response.json(
+      { error: "Daftar langkah tujuan evidence tidak valid." },
+      { status: 400 },
+    );
+  }
+
+  let read: ReturnType<typeof readItems> | undefined;
+  const trackerItems = () => (read ??= readItems());
+  if (!(await canAccessCase(iapId, trackerItems))) {
+    return Response.json(
+      { error: "Anda tidak memiliki akses ke kasus ini." },
+      { status: 403 },
+    );
+  }
+
+  const keys = stepNos.map((targetStepNo) => ({ iapId, stepNo: targetStepNo }));
+  const allItems = await trackerItems();
+  const items = keys.map((key) =>
+    allItems.find(
+      (candidate) => candidate.iapId === key.iapId && candidate.stepNo === key.stepNo,
+    ),
+  );
+  const missingIndex = items.findIndex((item) => !item);
+  if (missingIndex >= 0) {
+    const missing = keys[missingIndex]!;
+    return Response.json(
+      { error: `Item ${missing.iapId} langkah ${missing.stepNo} tidak ditemukan.` },
+      { status: 404 },
+    );
+  }
+
+  return { stepNos, keys, items: items as DerivedActionItem[] };
+}
+
+function parseStepNos(value: unknown, fallback: number): number[] | null {
+  if (value === undefined) return [fallback];
+  if (!Array.isArray(value) || value.length === 0 || value.length > 100) return null;
+  const unique = [...new Set(value)];
+  if (
+    unique.some(
+      (candidate) =>
+        typeof candidate !== "number" || !Number.isInteger(candidate) || candidate < 1,
+    )
+  ) {
     return null;
   }
+  return (unique as number[]).sort((a, b) => a - b);
+}
+
+function parseInitiateBody(body: unknown):
+  | { ok: true; kind: EvidenceKind; file: EvidenceUploadMetadata; stepNos?: number[] }
+  | { ok: false; error: string } {
+  if (!isRecord(body) || (body.kind !== "photo" && body.kind !== "document")) {
+    return { ok: false, error: "Jenis evidence tidak valid." };
+  }
+  if ("stepNos" in body && body.stepNos !== undefined && !Array.isArray(body.stepNos)) {
+    return { ok: false, error: "Daftar langkah tujuan evidence tidak valid." };
+  }
+  if (!isRecord(body.file)) {
+    return { ok: false, error: "Pilih file evidence terlebih dahulu." };
+  }
+  const { name, type, size } = body.file;
+  if (
+    typeof name !== "string" || !name.trim() || name.length > 255 ||
+    typeof type !== "string" || type.length > 200 ||
+    typeof size !== "number" || !Number.isSafeInteger(size)
+  ) {
+    return { ok: false, error: "Metadata file evidence tidak valid." };
+  }
+  return {
+    ok: true,
+    kind: body.kind,
+    file: { name, type, size },
+    stepNos: Array.isArray(body.stepNos) ? body.stepNos as number[] : undefined,
+  };
+}
+
+function parseCompleteBody(body: unknown):
+  | {
+      ok: true;
+      fileId: string;
+      nonce: string;
+      kind: EvidenceKind;
+      originalName: string;
+      stepNos?: number[];
+    }
+  | { ok: false; error: string } {
+  if (!isRecord(body) || (body.kind !== "photo" && body.kind !== "document")) {
+    return { ok: false, error: "Jenis evidence tidak valid." };
+  }
+  if ("stepNos" in body && body.stepNos !== undefined && !Array.isArray(body.stepNos)) {
+    return { ok: false, error: "Daftar langkah tujuan evidence tidak valid." };
+  }
+  if (
+    typeof body.fileId !== "string" || !/^[A-Za-z0-9_-]{5,200}$/.test(body.fileId) ||
+    typeof body.nonce !== "string" || !/^[A-Za-z0-9_-]{20,100}$/.test(body.nonce) ||
+    typeof body.originalName !== "string" || !body.originalName.trim() || body.originalName.length > 255
+  ) {
+    return { ok: false, error: "Konfirmasi upload evidence tidak valid." };
+  }
+  return {
+    ok: true,
+    fileId: body.fileId,
+    nonce: body.nonce,
+    kind: body.kind,
+    originalName: body.originalName,
+    stepNos: Array.isArray(body.stepNos) ? body.stepNos as number[] : undefined,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function uploadFailure(error: unknown): Response {
+  const message = error instanceof Error ? error.message : String(error);
+  const userSafe = [
+    /^Otorisasi Google Drive/,
+    /^Konfigurasi OAuth Google Drive/,
+    /^Kuota penyimpanan/,
+    /^Google Drive tidak merespons/,
+    /^Sesi upload evidence/,
+    /^Ukuran file evidence/,
+    /^Isi file tidak sesuai/,
+  ].some((pattern) => pattern.test(message));
+  return Response.json(
+    {
+      error: userSafe
+        ? message
+        : "Gagal mengunggah evidence. Silakan coba lagi atau hubungi admin.",
+    },
+    { status: 500 },
+  );
 }

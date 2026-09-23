@@ -4,6 +4,7 @@ import {
   editItem,
   expectModalClosed,
   findRow,
+  mockEvidenceUpload,
   openDashboard,
   readDataRows,
   resetSheet,
@@ -137,15 +138,9 @@ test.describe("link evidence", () => {
     page,
     request,
   }) => {
-    await page.route("**/api/evidence/HU702/1", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          url: "https://drive.google.com/file/d/foto-evidence/view",
-          name: "briefing.png",
-        }),
-      });
+    await mockEvidenceUpload(page, "**/api/evidence/HU702/1", {
+      url: "https://drive.google.com/file/d/foto-evidence/view",
+      name: "briefing.png",
     });
 
     await editItem(page, "HU702", 1);
@@ -161,7 +156,7 @@ test.describe("link evidence", () => {
     await page.getByTestId("field-evidence-file").setInputFiles({
       name: "briefing.png",
       mimeType: "image/png",
-      buffer: Buffer.from("fake-png"),
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     });
     await expect(page.getByTestId("evidence-uploaded")).toContainText(
       "briefing.png berhasil diunggah",
@@ -195,8 +190,41 @@ test.describe("link evidence", () => {
     });
 
     await expect(page.getByTestId("evidence-upload-error")).toHaveText(
-      "Ukuran file terlalu besar untuk diunggah. Maksimal 4 MB.",
+      "Ukuran file terlalu besar untuk diunggah. Maksimal 100 MB.",
     );
+  });
+
+  test("file di atas 4 MB dikirim langsung ke Drive, bukan melalui Vercel", async ({
+    page,
+  }) => {
+    let appRequestBytes = 0;
+    let driveRequestBytes = 0;
+    await mockEvidenceUpload(page, "**/api/evidence/HU702/1", {
+      url: "https://drive.google.com/file/d/besar/view",
+      name: "laporan-besar.pdf",
+      onApiRequest: (method, body) => {
+        if (method === "POST") appRequestBytes = Buffer.byteLength(body ?? "");
+      },
+      onDriveUpload: (bytes) => {
+        driveRequestBytes += bytes;
+      },
+    });
+
+    const buffer = Buffer.alloc(5 * 1024 * 1024);
+    buffer.write("%PDF-1.4");
+    await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-document").check();
+    await page.getByTestId("field-evidence-file").setInputFiles({
+      name: "laporan-besar.pdf",
+      mimeType: "application/pdf",
+      buffer,
+    });
+
+    await expect(page.getByTestId("evidence-uploaded")).toContainText(
+      "laporan-besar.pdf berhasil diunggah",
+    );
+    expect(appRequestBytes).toBeLessThan(1024);
+    expect(driveRequestBytes).toBe(buffer.length);
   });
 
   /**
@@ -212,16 +240,10 @@ test.describe("link evidence", () => {
     const uploading = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route("**/api/evidence/HU702/1", async (route) => {
-      await uploading;
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          url: "https://drive.google.com/file/d/lambat/view",
-          name: "lambat.pdf",
-        }),
-      });
+    await mockEvidenceUpload(page, "**/api/evidence/HU702/1", {
+      url: "https://drive.google.com/file/d/lambat/view",
+      name: "lambat.pdf",
+      beforeStart: () => uploading,
     });
 
     await editItem(page, "HU702", 1);
@@ -262,20 +284,17 @@ test.describe("link evidence", () => {
   test("Ubah kasus mengunggah satu file untuk beberapa langkah tujuan", async ({
     page,
   }) => {
-    let uploadCalls = 0;
-    let multipartBody = "";
-    await page.route("**/api/evidence/HU702/1", async (route) => {
-      uploadCalls += 1;
-      multipartBody = route.request().postDataBuffer()?.toString("utf8") ?? "";
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          url: "https://drive.google.com/file/d/dokumen-bersama/view",
-          name: "evidence.pdf",
-          stepNos: [1, 2],
-        }),
-      });
+    let directUploadCalls = 0;
+    let initiateBody = "";
+    await mockEvidenceUpload(page, "**/api/evidence/HU702/1", {
+      url: "https://drive.google.com/file/d/dokumen-bersama/view",
+      name: "evidence.pdf",
+      onApiRequest: (method, body) => {
+        if (method === "POST") {
+          directUploadCalls += 1;
+          initiateBody = body ?? "";
+        }
+      },
     });
 
     await page.getByTestId("case-edit-HU702").click();
@@ -287,14 +306,14 @@ test.describe("link evidence", () => {
     await page.getByTestId("case-evidence-file").setInputFiles({
       name: "evidence.pdf",
       mimeType: "application/pdf",
-      buffer: Buffer.from("fake-pdf"),
+      buffer: Buffer.from("%PDF-1.4"),
     });
 
     await expect(page.getByTestId("case-evidence-success")).toContainText(
       "ditambahkan ke 2 langkah",
     );
-    expect(uploadCalls).toBe(1);
-    expect(multipartBody).toContain("[1,2]");
+    expect(directUploadCalls).toBe(1);
+    expect(initiateBody).toContain("[1,2]");
   });
 
   test("mengganti input link ke dokumen tidak memicu controlled input warning", async ({

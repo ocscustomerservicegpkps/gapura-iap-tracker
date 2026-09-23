@@ -40,6 +40,57 @@ export const CTX = {
 
 export type SheetRow = string[];
 
+export interface MockEvidenceUploadOptions {
+  url: string;
+  name: string;
+  beforeStart?: () => Promise<void>;
+  onApiRequest?: (method: string, body: string | null) => void;
+  onDriveUpload?: (bytes: number) => void;
+}
+
+/** Mocks the two small app requests plus the direct browser-to-Drive PUT. */
+export async function mockEvidenceUpload(
+  page: Page,
+  endpoint: string,
+  options: MockEvidenceUploadOptions,
+): Promise<void> {
+  const sessionUrl = "https://www.googleapis.com/upload/drive/v3/files?upload_id=playwright-evidence";
+  await page.route(endpoint, async (route) => {
+    const request = route.request();
+    options.onApiRequest?.(request.method(), request.postData());
+    if (request.method() === "POST") {
+      await options.beforeStart?.();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          sessionUrl,
+          nonce: "playwright-upload-nonce-123456",
+          mimeType: request.postDataJSON().file.type,
+        }),
+      });
+      return;
+    }
+    if (request.method() === "PATCH") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ url: options.url, name: options.name }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.route(sessionUrl, async (route) => {
+    options.onDriveUpload?.(route.request().postDataBuffer()?.length ?? 0);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ id: "playwright-drive-file" }),
+    });
+  });
+}
+
 /**
  * Write a cell straight into the sheet, bypassing the app entirely — someone
  * typing into the spreadsheet in another tab. Nothing is revalidated, so what the

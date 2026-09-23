@@ -4,7 +4,12 @@ import { isOfflineAuth, isLocalFixtureMode } from "../../src/lib/offline";
 import { applicationOrigin, callbackPath, sameOrigin, contentSecurityPolicy } from "../../src/lib/security";
 import { coversCase, canAssignStation, hasGlobalAccess } from "../../src/domain/access";
 import { branchesOf } from "../../src/domain/branches";
-import { matchesEvidenceSignature } from "../../src/domain/evidence-file";
+import {
+  evidenceFileSizeError,
+  matchesEvidenceSignature,
+  MAX_EVIDENCE_BYTES,
+  validateEvidenceMetadata,
+} from "../../src/domain/evidence-file";
 import { limitedFormData, UploadBodyTooLarge } from "../../src/lib/upload-body";
 import { safeLinks } from "../../src/domain/rows";
 import { validateCaseInput, validateStepInput } from "../../src/domain/validate";
@@ -86,6 +91,12 @@ test("evidence rejects executable URLs and disguised upload formats", () => {
   assert.equal(matchesEvidenceSignature(new TextEncoder().encode("%PDF-1.7\n"), "pdf"), true);
   assert.equal(matchesEvidenceSignature(new Uint8Array([0xff, 0xd8, 0xff]), "jpg"), true);
   assert.equal(matchesEvidenceSignature(new Uint8Array([0x50, 0x4b, 0x03, 0x04]), "docx"), false);
+  assert.equal(evidenceFileSizeError({ size: MAX_EVIDENCE_BYTES }), null);
+  assert.match(evidenceFileSizeError({ size: MAX_EVIDENCE_BYTES + 1 })!, /100 MB/);
+  assert.match(
+    validateEvidenceMetadata({ name: "foto.pdf", type: "image/png", size: 100 }, "photo")!,
+    /Foto harus/,
+  );
 });
 test("upload body limits actual stream bytes without relying on declared length", async () => {
   const body = new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(100)); controller.enqueue(new Uint8Array(100)); controller.close(); } });

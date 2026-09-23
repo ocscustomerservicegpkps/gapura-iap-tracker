@@ -44,7 +44,7 @@ export function contentSecurityPolicy(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    `connect-src 'self' ${supabase}${process.env.NODE_ENV === "development" ? " ws: wss:" : ""}`,
+    `connect-src 'self' https://www.googleapis.com ${supabase}${process.env.NODE_ENV === "development" ? " ws: wss:" : ""}`,
     "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
   ].join("; ");
 }
