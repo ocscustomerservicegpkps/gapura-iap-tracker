@@ -157,7 +157,7 @@ Pilihan Bahasa Indonesia/English pernah dibuat/direncanakan, termasuk penggunaan
 
 ### Temuan penting tentang autentikasi Drive
 
-Service account dapat dipakai untuk Google Sheets, tetapi upload ke folder biasa di **My Drive** gagal karena kuota storage service account adalah 0. Untuk folder My Drive milik user, upload harus memakai OAuth pemilik folder. Service account masih mungkin dipakai sebagai fallback bila targetnya Shared Drive dan izin mendukung.
+Service account dapat dipakai untuk Google Sheets, tetapi tidak memiliki storage quota untuk upload ke folder **My Drive**. Upload evidence memakai OAuth akun pemilik folder. Agar refresh token tidak mengikuti batas tujuh hari mode Testing, OAuth app harus berstatus **In production** sebelum token baru dibuat.
 
 Konfigurasi environment yang dibutuhkan secara konsep:
 
@@ -176,32 +176,7 @@ Nilai aktual tersimpan di `.env.local` dan tidak boleh disalin ke dokumen, chat,
 
 ## 10. Otorisasi OAuth Drive
 
-Script: `scripts/authorize-drive.ts`
-
-Perintah:
-
-```powershell
-npm run authorize-drive
-```
-
-Alur script:
-
-- membuka/menampilkan URL login Google;
-- callback di `http://127.0.0.1:53682/oauth2callback`;
-- meminta offline access, consent, dan scope Google Drive;
-- menggunakan nilai `state` acak untuk keamanan;
-- menolak placeholder seperti `ISI_CLIENT_ID`;
-- mengabaikan callback browser lama yang state-nya sudah tidak cocok;
-- menulis refresh token yang diperoleh langsung ke `.env.local`;
-- setelah selesai, server lokal perlu direstart agar environment baru terbaca.
-
-Error yang pernah terjadi:
-
-- URL otorisasi masih memuat `client_id=ISI_CLIENT_ID` karena konfigurasi placeholder.
-- `State OAuth tidak cocok` karena callback/tab lama mengenai proses baru.
-- `invalid_grant` karena refresh token tidak valid/kedaluwarsa/dicabut.
-
-Masalah tersebut ditangani dengan validasi placeholder, mengabaikan callback state lama, dan melakukan otorisasi ulang sebagai pemilik folder.
+Jalankan `npm run authorize-drive`, buka URL terbaru yang dicetak di terminal, lalu login sebagai pemilik folder Evidence IAP. Script meminta offline access dan menyimpan refresh token baru langsung ke `.env.local`. Pastikan OAuth app sudah **In production** sebelum menjalankannya.
 
 ## 11. Endpoint upload evidence
 
@@ -215,7 +190,7 @@ Validasi dan alur yang diharapkan:
 
 1. Request harus berasal dari same origin.
 2. Item IAP dan nomor langkah harus valid/ada.
-3. File tidak boleh melebihi 10 MB.
+3. File tidak boleh melebihi 4 MB agar request multipart tetap di bawah batas payload Vercel 4,5 MB.
 4. Tipe file harus termasuk tipe yang diizinkan.
 5. File di-upload ke folder Drive Evidence IAP.
 6. File dibuat dapat diakses melalui link sesuai implementasi permission.
@@ -286,7 +261,8 @@ Evidence baru tidak boleh menimpa atau menghapus evidence lama.
 Lokasi berikut perlu menjadi titik awal saat debugging lanjutan:
 
 - `app/api/evidence/[iapId]/[stepNo]/route.ts` — endpoint upload evidence.
-- `lib/evidence.ts` — konfigurasi Drive, OAuth/service account, upload, permission, dan link.
+- `src/drive/evidence.ts` — konfigurasi OAuth Drive, upload, permission, dan link.
+- `scripts/authorize-drive.ts` — mendapatkan OAuth refresh token pemilik folder.
 - `lib/tracker-repository.ts` — baca/tulis spreadsheet, termasuk append evidence dan konteks.
 - `lib/rows.ts` — pemetaan row/kolom Tracker.
 - `lib/validate.ts` — validasi payload.
@@ -297,7 +273,6 @@ Lokasi berikut perlu menjadi titik awal saat debugging lanjutan:
 - Komponen `Dashboard` — ringkasan case dan tindakan.
 - Komponen `ActionTable` — tabel seluruh item aksi dan tautan evidence.
 - Server actions terkait create/update case dan item.
-- `scripts/authorize-drive.ts` — mendapatkan OAuth refresh token.
 - Test Playwright evidence.
 - `.env.example`, `README.md`, dan `package.json`.
 
@@ -365,7 +340,7 @@ Saat melanjutkan, jangan langsung berasumsi masalah sudah selesai. Reproduksi da
 6. Periksa pesan error/toast pada UI dan response endpoint upload di browser/network atau log server.
 7. Pastikan file muncul di folder Drive yang benar dan URL masuk ke row Tracker yang benar.
 8. Pastikan bukan tab/browser cache lama.
-9. Jika yang diuji adalah deployment publik, periksa environment deployment. `.env.local` hanya berlaku lokal dan memang tidak pernah di-push. Hosting harus memiliki semua variable OAuth/Google yang sama secara terpisah.
+9. Jika yang diuji adalah deployment publik, periksa environment deployment. `.env.local` hanya berlaku lokal dan memang tidak pernah di-push. Hosting harus memiliki folder ID dan tiga variabel OAuth yang sama secara terpisah.
 
 Kemungkinan besar perbedaan hasil user dengan pengujian lokal berasal dari salah satu dari: tab lama, tombol submit evidence level case belum ditekan, deployment belum memakai commit/env terbaru, OAuth env hanya tersedia lokal, atau request UI tertentu gagal dan perlu dilihat respons aktualnya.
 
@@ -386,7 +361,6 @@ Script penting:
 ```powershell
 npm run dev
 npm run build
-npm run authorize-drive
 ```
 
 Nama script typecheck/test harus dibaca dari `package.json` saat melanjutkan agar memakai command aktual repository.
@@ -418,7 +392,7 @@ Gunakan urutan ini pada task/chat berikutnya:
 ## 20. Status saat dokumen ini dibuat
 
 - Kode aplikasi terakhir diketahui berada di branch `main` dan sinkron dengan remote pada commit `b88ff3a`.
-- OAuth lokal pernah berhasil dan upload nyata pernah tervalidasi.
+- Folder evidence tetap berada di My Drive dan upload memakai OAuth akun pemiliknya.
 - Data/file fixture test sudah dibersihkan.
 - `.env.local` tetap lokal dan harus tetap diabaikan Git.
 - Laporan terakhir user sebelum permintaan summary adalah bahwa upload masih tidak bekerja dari sisi mereka, sehingga validasi ulang pada environment/tab/alur user tetap menjadi prioritas pertama.

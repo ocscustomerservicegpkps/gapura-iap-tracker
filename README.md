@@ -169,10 +169,10 @@ Cron history hanya membuktikan dispatch; keberhasilan mirror diperiksa dari stat
 ## Evidence, export, dan deployment
 
 File evidence tetap di Drive. URL disimpan di Supabase lalu dimirror ke Q.
-HTTP/HTTPS divalidasi dan link Drive dibuat view-only. Upload My Drive memerlukan
-OAuth pemilik folder; Shared Drive dapat memakai service account anggotanya.
-Isi GOOGLE_DRIVE_EVIDENCE_FOLDER_ID dan tiga GOOGLE_DRIVE_OAUTH_* credentials
-lihat .env.example. npm run authorize-drive menyimpan refresh token lokal.
+HTTP/HTTPS divalidasi dan link Drive dibuat view-only. Upload ke My Drive memakai
+OAuth akun pemilik folder. Isi GOOGLE_DRIVE_EVIDENCE_FOLDER_ID dan tiga
+GOOGLE_DRIVE_OAUTH_* credentials; lihat .env.example. Jalankan
+`npm run authorize-drive` untuk menyimpan refresh token baru ke `.env.local`.
 DOCX dan PDF/print membaca repository Supabase yang sama.
 
 Set environment Supabase/gateway di host Next.js serta credentials Drive bila

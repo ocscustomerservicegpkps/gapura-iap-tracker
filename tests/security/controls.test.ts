@@ -8,6 +8,7 @@ import { matchesEvidenceSignature } from "../../src/domain/evidence-file";
 import { limitedFormData, UploadBodyTooLarge } from "../../src/lib/upload-body";
 import { safeLinks } from "../../src/domain/rows";
 import { validateCaseInput, validateStepInput } from "../../src/domain/validate";
+import { evidenceUploadStatus } from "../../src/drive/evidence-config";
 
 function withEnv(values: Record<string, string>, run: () => void) {
   const before = { ...process.env };
@@ -25,6 +26,32 @@ test("offline privileges cannot coexist with Vercel or Google credentials", () =
   withEnv({ ...local, REQUIRE_AUTH_IN_FIXTURE_MODE: "1" }, () => {
     assert.equal(isLocalFixtureMode(), true); assert.equal(isOfflineAuth(), false);
   });
+});
+test("My Drive evidence upload requires the folder owner's complete OAuth configuration", () => {
+  const serviceAccountOnly = {
+    GOOGLE_DRIVE_EVIDENCE_FOLDER_ID: "shared-folder",
+    GOOGLE_DRIVE_OAUTH_CLIENT_ID: "",
+    GOOGLE_DRIVE_OAUTH_CLIENT_SECRET: "",
+    GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN: "",
+    GOOGLE_SERVICE_ACCOUNT_EMAIL: "service@example.iam.gserviceaccount.com",
+    GOOGLE_PRIVATE_KEY: "private-key",
+  };
+  withEnv(serviceAccountOnly, () => {
+    assert.deepEqual(evidenceUploadStatus(), {
+      ready: false,
+      missing: [
+        "GOOGLE_DRIVE_OAUTH_CLIENT_ID",
+        "GOOGLE_DRIVE_OAUTH_CLIENT_SECRET",
+        "GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN",
+      ],
+    });
+  });
+  withEnv({
+    ...serviceAccountOnly,
+    GOOGLE_DRIVE_OAUTH_CLIENT_ID: "client",
+    GOOGLE_DRIVE_OAUTH_CLIENT_SECRET: "secret",
+    GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN: "refresh-token",
+  }, () => assert.deepEqual(evidenceUploadStatus(), { ready: true, missing: [] }));
 });
 test("branch access covers all case rows and denies inactive/global users", () => {
   assert.equal(coversCase(branch, ["CGK", "DPS"]), false);

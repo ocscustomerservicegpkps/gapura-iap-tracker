@@ -14,6 +14,7 @@ import {
 } from "@/domain/context";
 import type { FieldErrors } from "@/domain/validate";
 import type { DerivedActionItem } from "@/domain/types";
+import { readUploadResponse } from "@/lib/upload-response";
 import {
   CaseEvidencePanel,
   type PendingCaseEvidenceLink,
@@ -241,7 +242,7 @@ export function CaseModal({
           `/api/evidence/${encodeURIComponent(iapId.trim())}/${index + 1}`,
           { method: "POST", body },
         );
-        const result = (await response.json()) as { url?: string; error?: string };
+        const result = await readUploadResponse<{ url?: string; error?: string }>(response);
         if (!response.ok || !result.url) {
           throw new Error(result.error || "Upload evidence gagal.");
         }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { evidenceFileSizeError } from "@/domain/evidence-file";
 import type { DerivedActionItem } from "@/domain/types";
+import { readUploadResponse } from "@/lib/upload-response";
 
 type EvidenceMode = "link" | "photo" | "document";
 type TargetMode = "all" | "selected";
@@ -69,6 +71,11 @@ export function CaseEvidencePanel({
     if (inFlight.current) return;
     setError(null);
     setSuccess(null);
+    const sizeError = evidenceFileSizeError(fileToUpload);
+    if (sizeError) {
+      setError(sizeError);
+      return;
+    }
     if (targets.length === 0) {
       setError("Pilih minimal satu langkah perbaikan.");
       return;
@@ -86,7 +93,7 @@ export function CaseEvidencePanel({
           `/api/evidence/${encodeURIComponent(iapId)}/${targets[0]}`,
           { method: "POST", body },
         );
-        const result = (await response.json()) as { error?: string };
+        const result = await readUploadResponse<{ error?: string }>(response);
         if (!response.ok) {
           throw new Error(result.error ?? "Upload evidence gagal.");
         }
@@ -198,7 +205,7 @@ export function CaseEvidencePanel({
       <p className="mt-2 text-[11px] text-faint">
         {mode === "link"
           ? "Link akan ditambahkan ke kolom Q saat Anda klik Simpan."
-          : "File langsung diunggah setelah dipilih. Satu file Drive dipakai untuk semua langkah tujuan."}
+          : "Maksimal 4 MB. File langsung diunggah setelah dipilih dan satu file Drive dipakai untuk semua langkah tujuan."}
       </p>
     </div>
   );

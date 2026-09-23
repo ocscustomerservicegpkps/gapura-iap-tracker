@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { evidenceFileSizeError } from "@/domain/evidence-file";
 import { STATUSES, type Status } from "@/domain/types";
 import type { FieldErrors, StepInput } from "@/domain/validate";
+import { readUploadResponse } from "@/lib/upload-response";
 import { STATUS_LABEL } from "./status-styles";
 
 /**
@@ -334,6 +336,12 @@ function EvidenceAttachmentField({
   const upload = async (file: File | undefined) => {
     if (!file) return;
     if (inFlight.current) return;
+    const sizeError = evidenceFileSizeError(file);
+    if (sizeError) {
+      setUploadError(sizeError);
+      setUploadedName(null);
+      return;
+    }
     if (deferredTarget && !uploadTarget) {
       onLinkChange("");
       deferredTarget.onSelected({ kind: mode as "photo" | "document", file });
@@ -355,11 +363,11 @@ function EvidenceAttachmentField({
         `/api/evidence/${encodeURIComponent(uploadTarget.iapId)}/${uploadTarget.stepNo}`,
         { method: "POST", body },
       );
-      const result = (await response.json()) as {
+      const result = await readUploadResponse<{
         url?: string;
         name?: string;
         error?: string;
-      };
+      }>(response);
       if (!response.ok || !result.url) {
         throw new Error(result.error || "Upload evidence gagal.");
       }
@@ -467,8 +475,8 @@ function EvidenceAttachmentField({
         {mode === "link"
           ? "Masukkan satu URL lengkap per baris. Tambahkan link baru di bawah link sebelumnya."
           : isDeferred
-            ? "File akan diunggah setelah kasus berhasil dibuat."
-            : "File disimpan ke Google Drive dan link-nya otomatis ditulis ke kolom Q."}
+            ? "File maksimal 4 MB dan akan diunggah setelah kasus berhasil dibuat."
+            : "File maksimal 4 MB. File disimpan ke Google Drive dan link-nya otomatis ditulis ke kolom Q."}
       </span>
       {uploading ? (
         <p className="mt-1 text-[11.5px] text-accent" role="status">

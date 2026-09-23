@@ -175,6 +175,30 @@ test.describe("link evidence", () => {
     );
   });
 
+  test("penolakan upload berupa teks tetap ditampilkan sebagai pesan yang ramah", async ({
+    page,
+  }) => {
+    await page.route("**/api/evidence/HU702/1", async (route) => {
+      await route.fulfill({
+        status: 413,
+        contentType: "text/plain",
+        body: "Request Entity Too Large",
+      });
+    });
+
+    await editItem(page, "HU702", 1);
+    await page.getByTestId("evidence-mode-document").check();
+    await page.getByTestId("field-evidence-file").setInputFiles({
+      name: "laporan.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4"),
+    });
+
+    await expect(page.getByTestId("evidence-upload-error")).toHaveText(
+      "Ukuran file terlalu besar untuk diunggah. Maksimal 4 MB.",
+    );
+  });
+
   /**
    * Saving closes the dialog and refreshes the page, which cancels whatever is
    * still in flight. A user who picks a document and reaches straight for Simpan

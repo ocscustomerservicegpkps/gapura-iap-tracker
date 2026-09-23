@@ -8,53 +8,18 @@ import {
   viewOnlyLink,
   type EvidenceFileIdentity,
 } from "@/domain/evidence";
-import type { ItemKey } from "@/domain/types";
 import {
-  evidenceDriveFolderId,
-  googleCredentials,
-} from "@/sheets/config";
+  evidenceFileSizeError,
+  MAX_EVIDENCE_BYTES,
+} from "@/domain/evidence-file";
+import type { ItemKey } from "@/domain/types";
+import { evidenceDriveFolderId } from "@/sheets/config";
+
+export { evidenceUploadStatus } from "@/drive/evidence-config";
 
 export type EvidenceKind = "photo" | "document";
 
-export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
-
-/**
- * Whether this deployment can accept a file at all. The credential lookups below
- * throw messages written for whoever is configuring the server — naming env vars
- * and pointing at `.env.example` — which is the wrong thing to put in front of
- * someone who is only trying to attach a document. Checked up front so the caller
- * can say what is actually true: uploads are off here, links still work.
- */
-export function evidenceUploadStatus(): { ready: boolean; missing: string[] } {
-  const missing: string[] = [];
-  if (!process.env.GOOGLE_DRIVE_EVIDENCE_FOLDER_ID?.trim()) {
-    missing.push("GOOGLE_DRIVE_EVIDENCE_FOLDER_ID");
-  }
-
-  const oauth = {
-    GOOGLE_DRIVE_OAUTH_CLIENT_ID: process.env.GOOGLE_DRIVE_OAUTH_CLIENT_ID?.trim(),
-    GOOGLE_DRIVE_OAUTH_CLIENT_SECRET:
-      process.env.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET?.trim(),
-    GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN:
-      process.env.GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN?.trim(),
-  };
-  const oauthSet = Object.values(oauth).filter(Boolean).length;
-
-  // Either a complete OAuth trio, or a service account to fall back on. A partial
-  // trio is always wrong, so report exactly which pieces are absent.
-  if (oauthSet > 0 && oauthSet < 3) {
-    for (const [name, value] of Object.entries(oauth)) {
-      if (!value) missing.push(name);
-    }
-  } else if (oauthSet === 0 && !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim()) {
-    missing.push("GOOGLE_DRIVE_OAUTH_CLIENT_ID");
-    missing.push("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET");
-    missing.push("GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN");
-  }
-
-  return { ready: missing.length === 0, missing };
-}
-
+export { MAX_EVIDENCE_BYTES } from "@/domain/evidence-file";
 const PHOTO_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -126,45 +91,27 @@ function evidenceFingerprint(
     .digest("hex");
 }
 
-/**
- * A service account can edit Sheets, but it has no personal Drive storage quota.
- * Uploads to a normal My Drive folder therefore use the folder owner's OAuth
- * credentials when configured. Shared Drive folders may continue using the service
- * account fallback because their files consume the shared drive's storage.
- */
+/** My Drive uploads run as the folder owner so files use that account's quota. */
 function evidenceAuth() {
   const clientId = process.env.GOOGLE_DRIVE_OAUTH_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_DRIVE_OAUTH_CLIENT_SECRET?.trim();
   const refreshToken = process.env.GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN?.trim();
-  const oauthValues = [clientId, clientSecret, refreshToken];
-  const configuredValues = oauthValues.filter(Boolean).length;
+  const values = [clientId, clientSecret, refreshToken];
 
-  if (oauthValues.some((value) => value && /^(ISI_|your_|change_me|xxx)/i.test(value))) {
+  if (values.some((value) => value && /^(ISI_|your_|change_me|xxx)/i.test(value))) {
     throw new Error(
       "Konfigurasi OAuth Google Drive masih berisi placeholder. Gunakan Client ID, Client Secret, dan Refresh Token yang asli.",
     );
   }
-
-  if (configuredValues > 0 && configuredValues < oauthValues.length) {
+  if (!clientId || !clientSecret || !refreshToken) {
     throw new Error(
       "Konfigurasi OAuth Google Drive belum lengkap. Isi GOOGLE_DRIVE_OAUTH_CLIENT_ID, GOOGLE_DRIVE_OAUTH_CLIENT_SECRET, dan GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN.",
     );
   }
 
-  if (clientId && clientSecret && refreshToken) {
-    const client = new auth.OAuth2(clientId, clientSecret);
-    client.setCredentials({ refresh_token: refreshToken });
-    return client;
-  }
-
-  const credentials = googleCredentials();
-  return new auth.GoogleAuth({
-    credentials: {
-      client_email: credentials.clientEmail,
-      private_key: credentials.privateKey.replace(/\\n/g, "\n"),
-    },
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
+  const client = new auth.OAuth2(clientId, clientSecret);
+  client.setCredentials({ refresh_token: refreshToken });
+  return client;
 }
 
 export function validateEvidenceFile(
@@ -175,9 +122,8 @@ export function validateEvidenceFile(
   // The whole file is buffered in memory before it reaches Drive, so the ceiling is
   // checked here against the actual body rather than against a Content-Length header
   // — that header counts the multipart envelope too and was rejecting valid files.
-  if (file.size > MAX_EVIDENCE_BYTES) {
-    return "Ukuran file evidence maksimal 10 MB.";
-  }
+  const sizeError = evidenceFileSizeError(file);
+  if (sizeError) return sizeError;
   const allowedTypes = kind === "photo" ? PHOTO_TYPES : DOCUMENT_TYPES;
   const allowedExtensions =
     kind === "photo" ? PHOTO_EXTENSIONS : DOCUMENT_EXTENSIONS;
@@ -199,7 +145,7 @@ export function validateEvidenceFile(
 /**
  * `bytes` is the body the caller has already read. A `File` can only be drained
  * once cheaply, and the route reads it to check the format signature, so passing
- * the buffer through avoids holding a second copy of a 10 MB upload in memory.
+ * the buffer through avoids holding a second copy of a 4 MB upload in memory.
  */
 export async function uploadEvidenceFile(
   file: File,
@@ -250,12 +196,12 @@ export async function uploadEvidenceFile(
     }
     if (/invalid_grant/i.test(message)) {
       throw new Error(
-        "Otorisasi Google Drive sudah tidak berlaku. Admin perlu membuat GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN baru dengan Client ID dan Client Secret yang sama, memperbarui environment Vercel Production, lalu melakukan redeploy.",
+        "Otorisasi Google Drive sudah tidak berlaku. Admin perlu membuat GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN baru dengan Client ID dan Client Secret yang sama, memperbarui environment Production, lalu melakukan redeploy.",
       );
     }
     if (/storage quota|storageQuotaExceeded/i.test(message)) {
       throw new Error(
-        "Service account tidak memiliki kuota Google Drive. Konfigurasikan OAuth akun pemilik folder melalui GOOGLE_DRIVE_OAUTH_CLIENT_ID, GOOGLE_DRIVE_OAUTH_CLIENT_SECRET, dan GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN.",
+        "Kuota penyimpanan akun pemilik folder Google Drive tidak mencukupi.",
       );
     }
     throw error;

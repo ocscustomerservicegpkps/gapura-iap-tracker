@@ -86,7 +86,7 @@ export async function POST(
 
     const extension = file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase();
     // Read the body once. The signature check and the Drive upload both need the
-    // bytes, and a second `arrayBuffer()` would hold a second copy of a 10 MB file.
+    // bytes, and a second `arrayBuffer()` would hold a second copy of a 4 MB file.
     const bytes = Buffer.from(await file.arrayBuffer());
     if (!matchesEvidenceSignature(new Uint8Array(bytes), extension)) {
       return Response.json({ error: "Isi file tidak sesuai dengan format evidence." }, { status: 400 });

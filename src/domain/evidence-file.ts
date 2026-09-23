@@ -1,3 +1,14 @@
+/** Leaves headroom for the multipart envelope under Vercel's 4.5 MB limit. */
+export const MAX_EVIDENCE_BYTES = 4 * 1024 * 1024;
+export const EVIDENCE_FILE_TOO_LARGE_MESSAGE =
+  "Ukuran file terlalu besar untuk diunggah. Maksimal 4 MB.";
+
+export function evidenceFileSizeError(file: { size: number }): string | null {
+  return file.size > MAX_EVIDENCE_BYTES
+    ? EVIDENCE_FILE_TOO_LARGE_MESSAGE
+    : null;
+}
+
 /** Header checks stop renamed HTML/scripts. They are not a malware scanner. */
 export function matchesEvidenceSignature(bytes: Uint8Array, extension: string): boolean {
   const starts = (...prefix: number[]) => prefix.every((value, i) => bytes[i] === value);
